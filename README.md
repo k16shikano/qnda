@@ -52,6 +52,13 @@ The only requirement is the main file. It will be like below.
 You might as well write Arrow.
 
 
+## Requirement
+To take advantage of mathematical equations, you may want below.
+
+ * pdfcrop
+ * pdf2svg
+
+
 ## License
 
 Copyright (c) 2015 SHIKANO keiichiro k16.shikano@gmail.com
