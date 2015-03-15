@@ -3,47 +3,12 @@
 module MathReader where
  
 import Text.XML.HXT.Core hiding (xshow)
-import Text.XML.HXT.Arrow.XmlArrow hiding (xshow)
-import Control.Arrow
-import Control.Arrow.ArrowTree
-import Control.Arrow.ArrowNavigatableTree
-import Control.Arrow.ArrowIf
-import qualified Text.XML.HXT.DOM.XmlNode as XN
-import Text.XML.HXT.DOM.ShowXml (xshow)
-
-import Data.Tree.Class (Tree)
-import qualified Data.Tree.Class as T hiding (Tree)
-import Data.Tree.NTree.TypeDefs (NTree)
-import Data.Tree.NavigatableTree.Class
-
-import Data.List
-import Data.List.Split
-import Data.Hashable ( hash )
-
-import qualified Data.Map as Map
-
-import Control.Monad as M hiding (when)
-import Control.Monad.State as S hiding (when)
-
-import Data.Maybe
-import System.Environment
-import System.Directory (copyFile)
-import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.Time.Clock (getCurrentTime)
-import System.Locale (defaultTimeLocale)
-import Data.Time.Format (formatTime)
 
 import qualified System.Cmd as Cmd (system)
 import qualified System.FilePath.Posix as FP
 import qualified System.Process as Prc (readProcess)
 
-import qualified Data.ByteString.Lazy as B
 import qualified System.IO as IO
-
-import Data.ByteString.Lazy.UTF8 ( fromString, toString )
-import Codec.Archive.Zip
-
-import AuxReader (readAux)
 
 import qualified Debug.Trace as DT (trace)
 
