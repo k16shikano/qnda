@@ -6,57 +6,47 @@ qnda is written with HXT, Haskell Xml Tool. It means you don't need to write eac
 
 qnda generates usual sequential numbers within a book. You can write your document without hard-corded sequential numbers like "Chapter 1" or "Fig-1.2". In addition to that, these numbers are automatically resolved when you want to refer them from somewhere else in your book. So, you can write
 
-{{{
-<p>For more details, see <a id="foo"/>.</p>
-
-<figure>
-<img src="foo.png"/>
-<caption id="foo">details of foo</caption>
-</figure>
-}}}
+    <p>For more details, see <a id="foo"/>.</p>
+    <figure>
+      <img src="foo.png"/>
+      <caption id="foo">details of foo</caption>
+    </figure>
 
 instead of,
 
-{{{
-<p>For more details, see Fig-1.3.</p>
-
-<figure>
-<img src="foo.png"/>
-<caption id="foo">Fig-1.3: details of foo</caption>
-</figure>
-}}}
-
+    <p>For more details, see Fig-1.3.</p>
+    <figure>
+      <img src="foo.png"/>
+      <caption id="foo">Fig-1.3: details of foo</caption>
+    </figure>
 
 The only requirement is the main file. It will be like below. 
 
-{{{
-<book>
-<bookinfo>
-  <authors>
-    <name role="author">John Doe</name>
-  </authors>
-  <booktitle>Awesome Book</booktitle>
-  <printings>
-    <printing date="Jan. 2000">1st edition.</printing>
-    <printing date="Feb. 2015">2nd edition.</printing>
-  </printings>
-  <copyright year="2015">Keiichiro Shikano</copyright>
-  <isbn>978-xxxxxxxxxx</isbn>
-</bookinfo>
+    <book>
+    <bookinfo>
+      <authors>
+        <name role="author">John Doe</name>
+      </authors>
+      <booktitle>Awesome Book</booktitle>
+      <printings>
+        <printing date="Jan. 2000">1st edition.</printing>
+        <printing date="Feb. 2015">2nd edition.</printing>
+      </printings>
+      <copyright year="2015">Keiichiro Shikano</copyright>
+      <isbn>978-xxxxxxxxxx</isbn>
+    </bookinfo>
 
-<frontmatter/>
-  <a href="preface.html"><include>preface</include></a>
-<mainmatter/>
-  <a href="ch01.html"><include>ch01</include></a>
-  <a href="ch02.html"><include>ch02</include></a>
-  <a href="ch03.html"><include>ch03</include></a>
-<appendix/>
-  <a href="app.html"><include>app</include></a>
-
-</book>
-}}}
-
-
+    <frontmatter/>
+      <a href="preface.html"><include>preface</include></a>
+    <mainmatter/>
+      <a href="ch01.html"><include>ch01</include></a>
+      <a href="ch02.html"><include>ch02</include></a>
+      <a href="ch03.html"><include>ch03</include></a>
+    <appendix/>
+      <a href="app.html"><include>app</include></a>
+    </book>
+ 
+ 
 ## Disadvantage
 
 You might as well write Arrow.
