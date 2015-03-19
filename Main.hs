@@ -42,7 +42,7 @@ main = do
   let ncxfile = "toc.ncx"
   let auxfile = "book.aux" -- if you will
   let fontsdir = "fonts"
-  let outputFileName = "ymnwcp.epub"
+  let outputFileName = "output.epub"
   
   [book] <- getArgs
   isbn <- getIsbn book
