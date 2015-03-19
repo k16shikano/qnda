@@ -37,13 +37,13 @@ The only requirement is the main file. It will be like below.
     </bookinfo>
 
     <frontmatter/>
-      <a href="preface.html"><include>preface</include></a>
+      <include>preface</include>
     <mainmatter/>
-      <a href="ch01.html"><include>ch01</include></a>
-      <a href="ch02.html"><include>ch02</include></a>
-      <a href="ch03.html"><include>ch03</include></a>
+      <include>ch01</include>
+      <include>ch02</include>
+      <include>ch03</include>
     <appendix/>
-      <a href="app.html"><include>app</include></a>
+      <include>app</include>
     </book>
  
  
