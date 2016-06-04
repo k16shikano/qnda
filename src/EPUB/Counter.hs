@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, FlexibleContexts #-}
 
-module Counter where
+module EPUB.Counter where
 
 import Text.XML.HXT.Core hiding (xshow)
 

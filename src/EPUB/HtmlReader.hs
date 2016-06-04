@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, FlexibleContexts #-}
 
-module HtmlReader (readHtml, getTextFromNode) where
+module EPUB.HtmlReader (readHtml, getTextFromNode) where
  
 import Text.XML.HXT.Core hiding (xshow)
 import Data.Hashable ( hash )
@@ -11,9 +11,9 @@ import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as B
 import Data.ByteString.Lazy.UTF8 ( fromString )
 
-import MathReader
-import ImageReader
-import Counter
+import EPUB.MathReader
+import EPUB.ImageReader
+import EPUB.Counter
 
 --import qualified Debug.Trace as DT (trace)
 

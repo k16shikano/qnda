@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, FlexibleContexts #-}
 
-module Toc where
+module EPUB.Toc where
 
 import Text.XML.HXT.Core hiding (xshow)
 import Data.Hashable ( hash )

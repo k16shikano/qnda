@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, FlexibleContexts #-}
 
-module MetaInformation where
+module EPUB.MetaInformation where
 
 import Text.XML.HXT.Core hiding (xshow)
 

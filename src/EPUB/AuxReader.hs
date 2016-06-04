@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 
-module AuxReader (readAux) where
+module EPUB.AuxReader (readAux) where
 
 import System.Environment
 import qualified Data.Map as Map

@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, FlexibleContexts #-}
 
-module ImageReader where
+module EPUB.ImageReader where
  
 import Text.XML.HXT.Core hiding (xshow)
 
@@ -8,7 +8,7 @@ import System.Directory (copyFile, createDirectoryIfMissing)
 import qualified System.FilePath.Posix as FP
 import qualified System.Process as Prc (readProcess)
 
--- import qualified Debug.Trace as DT (trace)
+import qualified Debug.Trace as DT (trace)
 
 imagePathToResourceName ::   FilePath      -- input file name
                           -> IO [FilePath] -- list of image paths within the file

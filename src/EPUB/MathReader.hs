@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, FlexibleContexts #-}
 
-module MathReader where
+module EPUB.MathReader where
  
 import Text.XML.HXT.Core hiding (xshow)
 

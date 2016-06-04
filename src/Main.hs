@@ -18,15 +18,15 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 
 import qualified Codec.Archive.Zip as ZIP
 
-import HtmlReader (readHtml, getTextFromNode)
-import AuxReader (readAux)
-import MathReader (mathElemToResourceName, genImageFromEqString)
-import ImageReader (imagePathToResourceName)
-import MetaInformation (mkCoverpage, genOkuzuke, getMetaInfo, mkOpf, mkContainer, getIsbn)
-import Counter (readLabelInfo)
-import Toc (mkTocpage, mkNcx)
+import EPUB.HtmlReader (readHtml, getTextFromNode)
+import EPUB.AuxReader (readAux)
+import EPUB.MathReader (mathElemToResourceName, genImageFromEqString)
+import EPUB.ImageReader (imagePathToResourceName)
+import EPUB.MetaInformation (mkCoverpage, genOkuzuke, getMetaInfo, mkOpf, mkContainer, getIsbn)
+import EPUB.Counter (readLabelInfo)
+import EPUB.Toc (mkTocpage, mkNcx, mkHeaderCnt)
 
--- import qualified Debug.Trace as DT (trace)
+import qualified Debug.Trace as DT (trace)
 
 -- main
 main :: IO ()
