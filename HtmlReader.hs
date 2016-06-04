@@ -64,7 +64,7 @@ readHtml filename labels mathSnipets label n t = do
          += (eelem "rt" += (txt $< (this >>> getAttrValue "yomi"))))
         `when` hasName "ruby"
         >>>
-        (eelem "code" += (this >>> getChildren))
+        (eelem "tt" += (this >>> getChildren))
         `when` (hasName "filename" <+> hasName "tt")
         >>>
        
@@ -78,7 +78,7 @@ readHtml filename labels mathSnipets label n t = do
         
         
         -- Block elements
-        (eelem "div" 
+        (eelem "p" 
          += sattr "class" "para" 
          += (this >>> getChildren)
          <+>
@@ -118,7 +118,7 @@ readHtml filename labels mathSnipets label n t = do
               ((putLabel . (++"column") $< getTextFromNode label) <+> (eelem "h4" += getChildren))
               this)))
         `when` hasName "column"
-              
+        
       
         -- Misc
         >>>
@@ -320,8 +320,11 @@ genChapSecSubsec n t label =
                    "appendix" -> (txt . getAppendix) $< getState
                    _ -> txt "")
              += txt "."
-             += (((txt . getFigure) $< nextFigure) += txt ": " += getChildren)
+             += ((txt . getFigure) $< nextFigure)
+             += txt "："
+             += getChildren
              += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none)))
+          , hasName "p" :-> this
           , hasName "pre" :-> this
           , hasName "img" :-> this
           , this :-> this
@@ -340,7 +343,9 @@ genChapSecSubsec n t label =
                    "appendix" -> (txt . getAppendix) $< getState
                    _ -> txt "")
              += txt "."
-             += (((txt . getTable) $< nextTable) += txt ": " += getChildren)
+             += ((txt . getTable) $< nextTable) 
+             += txt ": " 
+             += getChildren
              += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none)))
           , this :-> this
           ]))
