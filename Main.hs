@@ -56,23 +56,46 @@ main = do
   
   -- Qualifing each file with an information whether it's to be a chapter, frontmatter, or appendix.
   -- The information must resist in the "book" file.  
+  hOnes <- runX (
+    readDocument [withValidate no] book
+    >>>
+    (multi (ifA (hasName "include")
+            ((getChildren >>> getText)
+             &&&
+             ((getChildren >>> getText >>> arr (++".html"))
+              >>> arrIO hOneCounter >>> unlistA))
+            (none))))
+  let hOnesInFiles = Map.fromList hOnes
   htmls <- runX (
     readDocument [withValidate no] book
     >>>
     fromSLA (0,"frontmatter", "")
     (multi (ifA (hasName "include")
-            (nextState . (\(filename, numOfh1) (n,x,_) -> (n+numOfh1, x, filename)) 
+            (nextState . (\(filename, numOfh1) (n,x,_) 
+                          -> ( n+numOfh1
+                             , (if numOfh1 == 0 && x == "chapter"
+                                then "part"
+                                else (if x == "part" then "chapter" else x))
+                             , filename)) 
                            $< ((getChildren >>> getText >>> arr (++".html"))
-                               &&& (listA (multi (hasName "h1")) >>> arr length)))
+                               &&&
+                               ((\f -> case Map.lookup f hOnesInFiles of
+                                    Just i -> constA i
+                                    Nothing -> constA 0)
+                                $< (getChildren >>> getText))))
             (ifA (hasName "mainmatter")
              (constA (0, "chapter", "") >>> setState)
-             (ifA (hasName "appendix") 
+             (ifA (hasName "appendix")
               (constA (0, "appendix", "") >>> setState) 
               (none)))))
     )
-  let htmlFiles = filter (\(n,t,f) -> f/="") htmls
-  let htmlFilenames = map (\(n,t,f) -> f) htmlFiles
-
+  let shift ns = zipWith (-) ns (0 : map (\x -> x - 1) (zipWith (-) (drop 1 ns) ns))
+  let tempHtmlFiles = filter (\(_,_,f) -> f/="") htmls
+      sequentNumbers = map (\(n,_,_) -> n) tempHtmlFiles
+      hOneTypes = map (\(_,t,_) -> t) tempHtmlFiles
+      htmlFilenames = map (\(_,_,f) -> f) tempHtmlFiles
+      htmlFiles = zip3 (shift sequentNumbers) hOneTypes htmlFilenames
+  
   -- Retrieving reference-ids from all the html files and letting each id be pair with the filename,
   -- in order to make distinct ids in the epub file.  
   labelsAndFiles <-
@@ -90,7 +113,7 @@ main = do
   let internalLinkLabels = Map.fromList $ concat labelsAndFiles
 
   maths <- mapM mathElemToResourceName htmlFilenames
-  mapM_ (\(imagepath, equation) -> genImageFromEqString imagepath equation) $ concat maths
+  mapM_ (\(mathimagepath, equation) -> genImageFromEqString mathimagepath equation) $ concat maths
   let mathSnipets = Map.fromList $ concat maths
   let mathimages = map fst $ concat maths
   mathImageEntries <- mapM (ZIP.readEntry []) mathimages
@@ -108,15 +131,26 @@ main = do
 
   -- extract all the header elements to generate toc and ncx
   headers <- 
-    mapM (\f -> do
+    mapM (\(n,t,f) ->
              runX (readDocument [withValidate no] f 
                    >>> 
-                   (multi
-                    (ifA ((hasName "h1" <+> hasName "h2" <+> hasName "appendix")) 
-                     (this) (none))
-                    >>>
-                    ((getName) &&& (getTextFromNode labelmap) &&& constA f)))
-         ) htmlFilenames
+                   (fromSLA (n-1)
+                    (multi
+                     (ifA (hasName "h0")
+                      (getName &&& (getTextFromNode labelmap) &&& constA f &&&
+                       (constA $ (mkHeaderCnt "part" 0)))
+                      (ifA (hasName "h1" <+> hasName "appendix")
+                       (getName &&& (getTextFromNode labelmap) &&& constA f &&&
+                        (ifA (hasAttrValue "nonum" (=="yes"))
+                         (constA $ mkHeaderCnt "other" n)
+                         (constA . (mkHeaderCnt t) $< (nextState (+1)))))
+                       (ifA (hasName "h2")
+                        (getName &&& (getTextFromNode labelmap) &&& constA f &&&
+                         (ifA (hasAttrValue "nonum" (=="yes")) 
+                          (constA $ mkHeaderCnt "other" n) 
+                          (constA $ mkHeaderCnt t n)))
+                        (none)))))))
+         ) htmlFiles
 
   ncx <- mkNcx (concat isbn) (concat headers)
   let ncxEntry = mkEntry ncxfile $ fromString . xshow $ ncx
@@ -145,4 +179,14 @@ main = do
   B.writeFile outputFileName $ ZIP.fromArchive archive
   
   return ()
-  
+
+hOneCounter :: String -> IO [Int]
+hOneCounter file = do
+  c <- runX (
+    readDocument [withValidate no] file 
+    >>>
+    listA (this //> multi (hasName "h1"))
+    >>>
+    arr length)
+  return c
+

@@ -4,7 +4,7 @@ module ImageReader where
  
 import Text.XML.HXT.Core hiding (xshow)
 
-import System.Directory (copyFile)
+import System.Directory (copyFile, createDirectoryIfMissing)
 import qualified System.FilePath.Posix as FP
 import qualified System.Process as Prc (readProcess)
 
@@ -28,17 +28,26 @@ imagePathToResourceName f = do
             (getAttrValue "src"))))
   paths <- mapM (
     \(basename, counter) -> do
-      let imgpathInEpub = "images/png/" ++ (FP.dropExtension f) ++ basename ++ (show counter) ++ ".png"
+      let htmlpath = FP.takeDirectory f
+      if htmlpath /= "." then createDirectoryIfMissing True ("images/png/"++htmlpath) else return ()
+      let imgpathInEpub = 
+            "images/png/" ++ (FP.dropExtension f) ++ basename ++ (show counter) ++ ".png"
       copyFile ("images/png/"++basename++".png") imgpathInEpub
       return imgpathInEpub
     ) $ zip (map (FP.takeBaseName) $ concat links) [1..]
   return paths
 
 mkImgId :: FilePath  -> (FilePath, Int) -> String
-mkImgId f (s,c) = FP.dropExtension f ++ FP.takeBaseName s ++ show c
+mkImgId f (s,c) = 
+  FP.dropExtension f ++ FP.takeBaseName s ++ show c
 
-mkImgSrcPath :: String -> FilePath 
-mkImgSrcPath imgid = FP.combine "images/png/" $ imgid FP.<.> ".png"
+mkImgLead :: FilePath -> String
+mkImgLead f = 
+  let htmlpath = FP.takeDirectory f
+  in (concat . replicate (length $ (filter (/=".") $ FP.splitPath htmlpath))) "../"
+
+mkImgSrcPath :: String -> String -> FilePath 
+mkImgSrcPath imglead imgid = FP.combine (imglead++"images/png/") $ imgid FP.<.> ".png"
 
 imgElem :: (ArrowXml a) => FilePath -> a XmlTree XmlTree
 imgElem f = 
@@ -46,13 +55,15 @@ imgElem f =
      processBottomUp (
         (((\(alt,path) -> 
             eelem "img" 
-            += sattr "src" path 
+            += sattr "src" path
             += sattr "alt" alt
             += sattr "class" "figure")
           $<
-          (getAttrValue "src" &&& nextState (+1) >>> arr (mkImgId f) >>> (this &&& arr mkImgSrcPath)))
+          (getAttrValue "src" &&& nextState (+1) 
+           >>> arr (mkImgId f)
+           >>> (this &&& arr (mkImgSrcPath (mkImgLead f)))))
          >>> styleAttr)
-        `when` 
+        `when`
         (hasName "img" >>> neg (hasAttrValue "class" (=="inlinemath") <+> hasAttrValue "class" (=="displaymath")))))
 
 styleAttr :: (ArrowXml a) => a XmlTree XmlTree

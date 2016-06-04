@@ -5,8 +5,8 @@ module MetaInformation where
 import Text.XML.HXT.Core hiding (xshow)
 
 import Data.Time.Clock (getCurrentTime)
-import System.Locale (defaultTimeLocale)
-import Data.Time.Format (formatTime)
+-- import System.Locale (defaultTimeLocale)
+import Data.Time.Format (formatTime, defaultTimeLocale)
 
 --import qualified Debug.Trace as DT (trace)
 

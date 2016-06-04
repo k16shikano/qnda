@@ -208,7 +208,7 @@ mkInternalLinkPage linkfiles label =
   += txt "[ref within the book]"
   where 
     labelfile = case Map.lookup label linkfiles of
-      Just filename -> filename++"#"++(idTrim label)
+      Just filename -> "../"++filename++"#"++(idTrim label)
       Nothing -> (idTrim label)
 
 mkInternalLink linkfiles map label = 
@@ -217,7 +217,7 @@ mkInternalLink linkfiles map label =
   += labelinfo
   where 
     labelfile = case Map.lookup label linkfiles of
-      Just filename -> filename++"#"++(idTrim label)
+      Just filename -> "../"++filename++"#"++(idTrim label)
       Nothing -> (idTrim label)
     labelinfo = replaceLabel map label
   
@@ -228,13 +228,16 @@ replaceLabel map label =
       Just (counter, title) -> mkLinkenTitle label counter title
       Nothing -> "????"
     mkLinkenTitle label counter title = case take 3 label of
+      "par" -> counter
+      "cha" -> counter
+      "chp" -> counter
       "sec" -> counter
       "fig" -> "" ++ counter
       "tbl" -> "" ++ counter
       "tou" -> counter
       "Wir" -> counter
       "mac" -> counter
-      _ -> "[page reference]"
+      _ -> "[reference]"
 
 ftnMark :: (ArrowXml a) => a XmlTree XmlTree
 ftnMark = fromSLA 0 $
@@ -280,8 +283,8 @@ genChapSecSubsec n t label =
          += (ifA (hasAttr "nonum")
              (getChildren)
              (case t of 
-                "chapter" -> (txt . (\c -> "Chapter "++(getChapter c)++"：")) $< nextChapter
-                "appendix" -> (txt . (\c -> "Appendix "++(getAppendix c)++"：")) $< nextChapter
+                "chapter" -> (txt . (\c -> "Chapter"++(getChapter c)++": ")) $< nextChapter
+                "appendix" -> (txt . (\c -> "Appendix"++(getAppendix c)++": ")) $< nextChapter
                 _ -> txt "")
              <+> (txt $< (this >>> getTextFromNode label))))
         `when` (hasName "h1" <+> hasName "preface" <+> hasName "appendix"))
@@ -291,8 +294,8 @@ genChapSecSubsec n t label =
          += (ifA (hasAttr "nonum")
              (getChildren)
              (case t of 
-                "chapter" -> (txt . (\c -> (getChapter c)++"."++(getSection c)++"：")) $< nextSection
-                "appendix" -> (txt . (\c -> (getAppendix c)++"."++(getSection c)++"：")) $< nextSection
+                "chapter" -> (txt . (\c -> (getChapter c)++"."++(getSection c)++": ")) $< nextSection
+                "appendix" -> (txt . (\c -> (getAppendix c)++"."++(getSection c)++": ")) $< nextSection
                 _ -> (txt "")
               <+> (txt $< (this //> getText)))))
         `when` hasName "h2")
@@ -302,8 +305,8 @@ genChapSecSubsec n t label =
          += (ifA (hasAttr "nonum")
              (getChildren)
              (case t of
-                "chapter" -> (txt . (\c -> (getChapter c)++"."++(getSection c)++"."++(getSubSection c)++"：")) $< nextSubSection
-                "appendix" -> (txt . (\c -> (getAppendix c)++"."++(getSection c)++"."++(getSubSection c)++"：")) $< nextSubSection
+                "chapter" -> (txt . (\c -> (getChapter c)++"."++(getSection c)++"."++(getSubSection c)++": ")) $< nextSubSection
+                "appendix" -> (txt . (\c -> (getAppendix c)++"."++(getSection c)++"."++(getSubSection c)++": ")) $< nextSubSection
                 _ -> txt ""
               <+> getChildren)))
         `when` hasName "h3")
@@ -312,13 +315,13 @@ genChapSecSubsec n t label =
        ((eelem "figure"
          +=
          (this //> choiceA 
-          [ hasName "caption" :-> 
+          [ hasName "figcaption" :-> 
             (eelem "figcaption" 
-             += txt "fig-"
+             += txt "Figure-"
              += (case t of
-                   "chapter" -> (txt . getChapter) $< getState
-                   "appendix" -> (txt . getAppendix) $< getState
-                   _ -> txt "")
+                    "chapter" -> (txt . getChapter) $< getState
+                    "appendix" -> (txt . getAppendix) $< getState
+                    _ -> txt "")
              += txt "."
              += ((txt . getFigure) $< nextFigure)
              += txt "："
@@ -337,7 +340,7 @@ genChapSecSubsec n t label =
          (this /> choiceA 
           [ hasName "caption" :->
             (eelem "caption" 
-             += txt "table-"
+             += txt "Table-"
              += (case t of
                    "chapter" -> (txt . getChapter) $< getState
                    "appendix" -> (txt . getAppendix) $< getState
