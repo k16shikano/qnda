@@ -18,7 +18,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 
 import qualified Codec.Archive.Zip as ZIP
 
-import EPUB.HtmlReader (readHtml, getTextFromNode)
+import EPUB.HtmlReader (readHtml, getTextFromNode, resolveHierarchy) 
 import EPUB.AuxReader (readAux)
 import EPUB.MathReader (mathElemToResourceName, genImageFromEqString)
 import EPUB.ImageReader (imagePathToResourceName)
@@ -96,6 +96,8 @@ main = do
       htmlFilenames = map (\(_,_,f) -> f) tempHtmlFiles
       htmlFiles = zip3 (shift sequentNumbers) hOneTypes htmlFilenames
   
+  --  print htmlFiles
+  
   -- Retrieving reference-ids from all the html files and letting each id be pair with the filename,
   -- in order to make distinct ids in the epub file.  
   labelsAndFiles <-
@@ -108,10 +110,13 @@ main = do
                             multi (ifA (hasName "ref" <+> hasName "pref" <+> hasName "pageref")
                                    (constA "")
                                    (getAttrValue "label")))
-             return $ map (flip (,) s) $ filter (/="") links
+--             return $ map (flip (,) s) $ filter (/="") links
+             return $ map (\link -> (link, s ++ resolveHierarchy s)) $ filter (/="") links
          ) htmlFilenames
   let internalLinkLabels = Map.fromList $ concat labelsAndFiles
-
+  
+--  print internalLinkLabels 
+  
   maths <- mapM mathElemToResourceName htmlFilenames
   mapM_ (\(mathimagepath, equation) -> genImageFromEqString mathimagepath equation) $ concat maths
   let mathSnipets = Map.fromList $ concat maths
@@ -189,4 +194,6 @@ hOneCounter file = do
     >>>
     arr length)
   return c
+
+
 

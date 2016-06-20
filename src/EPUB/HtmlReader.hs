@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, FlexibleContexts #-}
 
-module EPUB.HtmlReader (readHtml, getTextFromNode) where
+module EPUB.HtmlReader (readHtml, getTextFromNode, resolveHierarchy) where
  
 import Text.XML.HXT.Core hiding (xshow)
 import Data.Hashable ( hash )
@@ -10,6 +10,8 @@ import qualified Data.Map as Map
 
 import qualified Data.ByteString.Lazy as B
 import Data.ByteString.Lazy.UTF8 ( fromString )
+
+import qualified System.FilePath.Posix as FP
 
 import EPUB.MathReader
 import EPUB.ImageReader
@@ -149,11 +151,11 @@ readHtml filename labels mathSnipets label n t = do
                += (eelem "link" 
                    += sattr "rel" "stylesheet" 
                    += sattr "type" "text/css"
-                   += sattr "href" "css/epub.css")
-               += (eelem "link" 
+                   += sattr "href" (resolveHierarchy filename ++ "css/epub.css"))
+               += (eelem "link"
                    += sattr "rel" "stylesheet" 
                    += sattr "type" "text/css"
-                   += sattr "href" "css/fonts.css")
+                   += sattr "href" (resolveHierarchy filename ++ "css/fonts.css"))
                += (this /> hasName "title")
                += (eelem "meta" += sattr "charset" "utf-8"))
            += (deep 
@@ -186,6 +188,9 @@ readHtml filename labels mathSnipets label n t = do
   
   return $ fromString $ concat body
 
+resolveHierarchy s = 
+  (concat . replicate (length $ (filter (/=".") $ FP.splitPath (FP.takeDirectory s)))) "../"
+
 getTextFromNode :: (ArrowXml a) => (Map.Map String (String, String)) -> a XmlTree String
 getTextFromNode  label = 
   (listA (getChildren >>> multi ((replaceLabel label $< (getAttrValue "label")) `when` hasName "ref") >>> getText))
@@ -208,7 +213,7 @@ mkInternalLinkPage linkfiles label =
   += txt "[ref within the book]"
   where 
     labelfile = case Map.lookup label linkfiles of
-      Just filename -> "../"++filename++"#"++(idTrim label)
+      Just filename -> filename++"#"++(idTrim label)
       Nothing -> (idTrim label)
 
 mkInternalLink linkfiles map label = 
@@ -217,7 +222,7 @@ mkInternalLink linkfiles map label =
   += labelinfo
   where 
     labelfile = case Map.lookup label linkfiles of
-      Just filename -> "../"++filename++"#"++(idTrim label)
+      Just filename -> filename++"#"++(idTrim label)
       Nothing -> (idTrim label)
     labelinfo = replaceLabel map label
   
