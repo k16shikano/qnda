@@ -7,7 +7,9 @@ import Data.Hashable ( hash )
 import Control.Monad.State as S hiding (when)
 import Data.Char (chr)
 
---import qualified Debug.Trace as DT (trace)
+import EPUB.Counter (mkPartHead, mkChapterHead, mkAppendixHead)
+
+-- import qualified Debug.Trace as DT (trace)
 
 type HeaderTag  = String           -- h1, h2, and so on.
 type HeaderText = String           -- text of header
@@ -43,25 +45,28 @@ chapSectNum ((t, (h, (f, c))) : cs)  = do
       h2cnt = h2Prefix c sect
   put $ 
     case t of
+      "h0"  -> (chap, 0, h1cnt : result)
       "h1"  -> (chap, 0, h1cnt : result)
       "h2"  -> (chap, sect+1, h2cnt : result)
       _     -> (chap, sect, ("" : result))
   chapSectNum cs
 
 mkHeaderCnt :: String -> Int -> HeaderCnt
+mkHeaderCnt "part" n = (show n, "part")
 mkHeaderCnt "chapter" n = (show n, "chapter")
 mkHeaderCnt "appendix" n = ([chr $ 64+n], "appendix")
 mkHeaderCnt _ n    = ("", "other")
 
 h1Prefix :: HeaderCnt -> String
-h1Prefix (c, "chapter") = "Chapter: "++c++" "
-h1Prefix (c, "appendix") = "Appendix"++c++" "
-h1Prefix (c, "other") = ""
+h1Prefix (c, "part") = mkPartHead c
+h1Prefix (c, "chapter") = mkChapterHead c
+h1Prefix (c, "appendix") = mkAppendixHead c
+h1Prefix _ = ""
 
 h2Prefix :: HeaderCnt -> Int -> String
 h2Prefix (c, "chapter") n = c++"."++(show $ n+1)++" "
 h2Prefix (c, "appendix") n = c++"."++(show $ n+1)++" "
-h2Prefix (c, "other") n = ""
+h2Prefix _ _ = ""
 
 takeChildren prod = takeWhile (prod . fst . fst . fst)
 dropChildren prod = dropWhile (prod . fst . fst . fst)

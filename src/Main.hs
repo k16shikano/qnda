@@ -87,16 +87,17 @@ main = do
              (constA (0, "chapter", "") >>> setState)
              (ifA (hasName "appendix")
               (constA (0, "appendix", "") >>> setState) 
-              (none)))))
+              (ifA (hasName "backmatter")
+               (constA (0, "backmatter", "") >>> setState)
+               (none))))))
     )
   let shift ns = zipWith (-) ns (0 : map (\x -> x - 1) (zipWith (-) (drop 1 ns) ns))
   let tempHtmlFiles = filter (\(_,_,f) -> f/="") htmls
       sequentNumbers = map (\(n,_,_) -> n) tempHtmlFiles
       hOneTypes = map (\(_,t,_) -> t) tempHtmlFiles
       htmlFilenames = map (\(_,_,f) -> f) tempHtmlFiles
-      htmlFiles = zip3 (shift sequentNumbers) hOneTypes htmlFilenames
-  
-  --  print htmlFiles
+      htmlFiles' = zip3 (shift sequentNumbers) hOneTypes htmlFilenames
+      htmlFiles = seqPartNumber 0 htmlFiles'
   
   -- Retrieving reference-ids from all the html files and letting each id be pair with the filename,
   -- in order to make distinct ids in the epub file.  
@@ -143,7 +144,7 @@ main = do
                     (multi
                      (ifA (hasName "h0")
                       (getName &&& (getTextFromNode labelmap) &&& constA f &&&
-                       (constA $ (mkHeaderCnt "part" 0)))
+                       (constA $ (mkHeaderCnt "part" n)))
                       (ifA (hasName "h1" <+> hasName "appendix")
                        (getName &&& (getTextFromNode labelmap) &&& constA f &&&
                         (ifA (hasAttrValue "nonum" (=="yes"))
@@ -156,7 +157,7 @@ main = do
                           (constA $ mkHeaderCnt t n)))
                         (none)))))))
          ) htmlFiles
-
+  
   ncx <- mkNcx (concat isbn) (concat headers)
   let ncxEntry = mkEntry ncxfile $ fromString . xshow $ ncx
 

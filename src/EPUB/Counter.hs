@@ -18,6 +18,18 @@ type CounterState = ( Int -- chapter
                     , Int -- list
                     )
 
+mkPartHead :: String -> String
+mkPartHead n = "Part "++n++" "
+
+mkChapterHead :: String  -> String
+mkChapterHead n = "Chapter "++n++" "
+
+mkAppendixHead :: String  -> String
+mkAppendixHead n = "Appendix "++n++" "
+
+figCaptionHeader = "Fig-"
+tableCaptionHeader = "Table-"
+
 getChapter :: CounterState -> String
 getChapter (n,_,_,_,_,_) = show $ n-1
 
@@ -29,10 +41,10 @@ getAppendix :: CounterState -> String
 getAppendix (n,_,_,_,_,_) = [chr (64+n)]
 
 genChapterHeader :: String -> SLA CounterState XmlTree XmlTree
-genChapterHeader "part" = (txt . (\c -> "Part "++(getChapter c)++": ")) $< nextChapter
-genChapterHeader "chapter" = (txt . (\c -> "Chapter "++(getChapter c)++": ")) $< nextChapter
-genChapterHeader "appendix" = (txt . (\c -> "Appendix"++(getAppendix c)++": ")) $< nextChapter
-genChapterHeader t = txt ""
+genChapterHeader "part" = (txt . (\c -> mkPartHead (getChapter c))) $< nextChapter
+genChapterHeader "chapter" = (txt . (\c -> mkChapterHead (getChapter c))) $< nextChapter
+genChapterHeader "appendix" = (txt . (\c -> mkAppendixHead (getAppendix c))) $< nextChapter
+genChapterHeader _ = txt ""
 
 seekChapterLabel :: String -> SLA CounterState XmlTree XmlTree
 seekChapterLabel headertype = seekLabel "h1" $ genChapterHeader headertype
@@ -81,8 +93,8 @@ nextFigure = nextState update
     where update (c,s,ss,n,t,l) = (c,s,ss,n+1,t,l)
 
 genFigureHeader :: String -> SLA CounterState XmlTree XmlTree
-genFigureHeader "chapter" = (txt . (\c -> ""++(getChapter c)++"."++(getFigure c)++"")) $< nextFigure
-genFigureHeader "appendix" = (txt . (\c -> ""++(getAppendix c)++"."++(getFigure c)++"")) $< nextFigure
+genFigureHeader "chapter" = (txt . (\c -> figCaptionHeader++(getChapter c)++"."++(getFigure c)++"")) $< nextFigure
+genFigureHeader "appendix" = (txt . (\c -> figCaptionHeader++(getAppendix c)++"."++(getFigure c)++"")) $< nextFigure
 genFigureHeader t = txt ""
 
 seekFigureLabel :: String -> SLA CounterState XmlTree XmlTree
@@ -97,8 +109,8 @@ nextTable = nextState update
     where update (c,s,ss,f,n,l) = (c,s,ss,f,n+1,l)
 
 genTableHeader :: String -> SLA CounterState XmlTree XmlTree
-genTableHeader "chapter" = (txt . (\c -> ""++(getChapter c)++"."++(getTable c)++"")) $< nextTable
-genTableHeader "appendix" = (txt . (\c -> ""++(getAppendix c)++"."++(getTable c)++"")) $< nextTable
+genTableHeader "chapter" = (txt . (\c -> tableCaptionHeader++(getChapter c)++"."++(getTable c)++"")) $< nextTable
+genTableHeader "appendix" = (txt . (\c -> tableCaptionHeader++(getAppendix c)++"."++(getTable c)++"")) $< nextTable
 genTableHeader t = txt ""
 
 seekTableLabel :: String -> SLA CounterState XmlTree XmlTree
@@ -113,8 +125,8 @@ nextList = nextState update
     where update (c,s,ss,f,t,n) = (c,s,ss,f,t,n+1)
 
 genListHeader :: String -> SLA CounterState XmlTree XmlTree
-genListHeader "chapter" = (txt . (\c -> "Fig-"++(getChapter c)++"."++(getList c)++"")) $< nextList
-genListHeader "appendix" = (txt . (\c -> "Fig-"++(getAppendix c)++"."++(getList c)++"")) $< nextList
+genListHeader "chapter" = (txt . (\c -> figCaptionHeader++(getChapter c)++"."++(getList c)++"")) $< nextList
+genListHeader "appendix" = (txt . (\c -> figCaptionHeader++(getAppendix c)++"."++(getList c)++"")) $< nextList
 genListHeader t = txt ""
 
 seekListLabel :: String -> SLA CounterState XmlTree XmlTree

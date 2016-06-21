@@ -17,7 +17,8 @@ import EPUB.MathReader
 import EPUB.ImageReader
 import EPUB.Counter
 
---import qualified Debug.Trace as DT (trace)
+
+-- import qualified Debug.Trace as DT (trace)
 
 mkHtml :: FilePath -> (Map.Map String String) -> (Map.Map String String) -> (Map.Map String (String, String))
           -> Int -> String -> IO B.ByteString
@@ -302,8 +303,8 @@ genChapSecSubsec n t label =
          += (ifA (hasAttr "nonum")
              (getChildren)
              (case t of 
-                "chapter" -> (txt . (\c -> "Chapter"++(getChapter c)++": ")) $< nextChapter
-                "appendix" -> (txt . (\c -> "Appendix"++(getAppendix c)++": ")) $< nextChapter
+                "chapter" -> (txt . (\c -> (mkChapterHead $ getChapter c))) $< nextChapter
+                "appendix" -> (txt . (\c -> (mkAppendixHead $ getAppendix c))) $< nextChapter
                 _ -> txt "")
              <+> (txt $< (this >>> getTextFromNode label))))
         `when` (hasName "h1" <+> hasName "preface" <+> hasName "appendix"))
@@ -336,7 +337,7 @@ genChapSecSubsec n t label =
          (this //> choiceA 
           [ hasName "figcaption" :-> 
             (eelem "figcaption" 
-             += txt "Figure-"
+             += txt figCaptionHeader
              += (case t of
                     "chapter" -> (txt . getChapter) $< getState
                     "appendix" -> (txt . getAppendix) $< getState
@@ -359,7 +360,7 @@ genChapSecSubsec n t label =
          (this /> choiceA 
           [ hasName "caption" :->
             (eelem "caption" 
-             += txt "Table-"
+             += txt tableCaptionHeader
              += (case t of
                    "chapter" -> (txt . getChapter) $< getState
                    "appendix" -> (txt . getAppendix) $< getState
@@ -372,4 +373,5 @@ genChapSecSubsec n t label =
           , this :-> this
           ]))
         `when` hasName "table")))
+
 
