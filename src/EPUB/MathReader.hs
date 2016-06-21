@@ -89,7 +89,7 @@ mkMathSpan filepath =
       += sattr "class" "inlinemath")
 
 mkMathDiv filepath = 
-  eelem "div"
+  eelem "span"
   += (eelem "img"
       += sattr "src" filepath
       += sattr "class" "displaymath")

@@ -62,7 +62,7 @@ main = do
     (multi (ifA (hasName "include")
             ((getChildren >>> getText)
              &&&
-             ((getChildren >>> getText >>> arr (++".html"))
+             ((getChildren >>> getText >>> arr (++".xhtml"))
               >>> arrIO hOneCounter >>> unlistA))
             (none))))
   let hOnesInFiles = Map.fromList hOnes
@@ -77,7 +77,7 @@ main = do
                                 then "part"
                                 else (if x == "part" then "chapter" else x))
                              , filename)) 
-                           $< ((getChildren >>> getText >>> arr (++".html"))
+                           $< ((getChildren >>> getText >>> arr (++".xhtml"))
                                &&&
                                ((\f -> case Map.lookup f hOnesInFiles of
                                     Just i -> constA i
@@ -111,7 +111,7 @@ main = do
                                    (constA "")
                                    (getAttrValue "label")))
 --             return $ map (flip (,) s) $ filter (/="") links
-             return $ map (\link -> (link, s ++ resolveHierarchy s)) $ filter (/="") links
+             return $ map (\link -> (link, (resolveHierarchy s)++s)) $ filter (/="") links
          ) htmlFilenames
   let internalLinkLabels = Map.fromList $ concat labelsAndFiles
   
@@ -190,10 +190,13 @@ hOneCounter file = do
   c <- runX (
     readDocument [withValidate no] file 
     >>>
-    listA (this //> multi (hasName "h1"))
+    listA (this //> multi (hasName "h1" >>> neg (hasAttr "nonum")))
     >>>
     arr length)
   return c
 
-
+seqPartNumber :: Int -> [(Int, String, FilePath)] -> [(Int, String, FilePath)]
+seqPartNumber i ((_, "part", fp):xs) = (i+1, "part", fp):(seqPartNumber (i+1) xs)
+seqPartNumber i (x:xs) = x : (seqPartNumber i xs)
+seqPartNumber i [] = []
 

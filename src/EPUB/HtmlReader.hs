@@ -93,7 +93,7 @@ readHtml filename labels mathSnipets label n t = do
              (ifA (isText)
               ((\t -> foldl (\l r -> ifA l (l <+> eelem "br" <+> r) (r)) none $ map txt (String.split "\n" t)) $< getText)
               (this))))
-        `when` hasName "code"
+        `when` hasName "codelist"
         >>>
         (this >>> 
          ((\c -> case c of
@@ -120,8 +120,17 @@ readHtml filename labels mathSnipets label n t = do
               ((putLabel . (++"column") $< getTextFromNode label) <+> (eelem "h4" += getChildren))
               this)))
         `when` hasName "column"
-        
+        >>>
+        (eelem "div"
+         += (putLabel . ("h2"++) $< (this /> getText))
+         += sattr "class" "parthead"
+         += (txt (mkPartHead (show n))
+             <+> getChildren))
+        `when` hasName "h0"
       
+
+        
+        
         -- Misc
         >>>
         ((eelem "div" += sattr "style" "float:right;" += (txt $< getAttrValue "date") )
@@ -178,6 +187,13 @@ readHtml filename labels mathSnipets label n t = do
       >>>
       imgElem filename
             
+      
+      >>>
+      processTopDown (
+        (ifA (hasName "include")
+         (none)
+         (this)))
+        
       >>>
       writeDocumentToString [ withIndent no
                             , withRemoveWS no
@@ -276,8 +292,6 @@ mkFtnText n t = -- eelem "mbp:pagebreak" -- trick for kindle
                  <+> (eelem "div"
                       += (constA t >>> getChildren))
                  <+> (eelem "a" += sattr "href" ("#ntf"++n) += charRef 8617))
-
-
 
 
 genChapSecSubsec n t label = 

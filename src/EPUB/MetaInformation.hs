@@ -217,7 +217,7 @@ mkOpfHtmls htmls = catA $
                    map (\(n,t,f) -> eelem "item"
                                     += sattr "id" (t++(show n))
                                     += sattr "href" f
-                                    += sattr "properties" "svg" -- FIXME
+--                                    += sattr "properties" "svg" -- FIXME
                                     += sattr "media-type" "application/xhtml+xml") $
                    htmls
 
@@ -243,7 +243,9 @@ mkOpfMathImages images = catA $
                          map (\(s,n) -> eelem "item"
                               += sattr "id" ("mathimg"++(show n))
                               += sattr "href" s
-                              += sattr "media-type" "image/svg+xml") $
+                              += sattr "media-type" "image/png"
+--                              += sattr "media-type" "image/svg+xml" 
+                              ) $
                          (zip images [1..])
                                   
 mkOpfItemrefs :: (ArrowXml a) => [(Int, String, String)] -> a XmlTree XmlTree
