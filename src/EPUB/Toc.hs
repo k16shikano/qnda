@@ -110,7 +110,7 @@ mkNavNode headertext filename chapsec number =
   += sattr "id" ("navPoint-"++(show number))
   += sattr "playOrder" (show number)
   += (eelem "navLabel"
-      += (eelem "text" += (txt $ (chapsec++(drop 2 headertext)))))
+      += (eelem "text" += (txt (chapsec++(chopLeadingSpaces $ drop 2 headertext)))))
   += (eelem "content"
       += (sattr "src" $ filename++"#"++"name"++(show $ hash headertext)))
 
@@ -157,4 +157,7 @@ mkTocNode headertext filename chapsec number =
    += (eelem "a"
        += (sattr "href" $ filename++"#"++"name"++(show $ hash headertext))
        += (txt $ chapsec)
-       += (txt $ drop 2 headertext)))
+       += (txt $ chopLeadingSpaces $ drop 2 headertext)))
+
+chopLeadingSpaces :: String -> String
+chopLeadingSpaces = dropWhile (flip elem " \n")
