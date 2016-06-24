@@ -69,7 +69,7 @@ imgElem f =
          neg (hasAttrValue "class" (=="inlinemath") <+> hasAttrValue "class" (=="displaymath")))))
 
 styleAttr :: (ArrowXml a) => (String, String) -> a XmlTree XmlTree
-styleAttr (w,h) = (case (w,h) of
+styleAttr (w,h) = (case (h,w) of
                   ("","") -> sattr "style" "width:90%;"
                   ("",w')  -> sattr "style" $ "width:"++w'++";"
                   (h',"")  -> sattr "style" $ "height:"++h'++";"
