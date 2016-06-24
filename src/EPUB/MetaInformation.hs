@@ -137,11 +137,11 @@ mkOpf metadata htmls images mathimages (coverimg, coverfilename) tocpagefile oku
       += (eelem "item"
           += sattr "href" "fonts/Inconsolata.otf"
           += sattr "id" "font1"
-          += sattr "media-type" "application/x-font-truetype")
+          += sattr "media-type" "application/vnd.ms-opentype")
       += (eelem "item"
           += sattr "href" "fonts/Inconsolatabold.otf"
           += sattr "id" "font2"
-          += sattr "media-type" "application/x-font-truetype")
+          += sattr "media-type" "application/vnd.ms-opentype")
      )
   += (eelem "spine"
       += sattr "toc" "ncx"
