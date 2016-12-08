@@ -6,6 +6,7 @@ import Text.XML.HXT.Core hiding (xshow)
 
 import Data.Hashable (hash)
 import Data.Char (chr)
+import Data.String.Utils 
 import qualified Data.Map as Map
 
 -- import qualified Debug.Trace as DT (trace)
@@ -191,7 +192,9 @@ seekLabel whose how = deepest
     where mkLabel s = "name"++(show $ hash s)
    
 idTrim :: String -> String
-idTrim str = map (\c -> case c of
-                     ':' -> '-' 
-                     _   -> c)
-             str
+idTrim str = case str of 
+  '&':_ -> idTrim $ join ";" $ tail $ split ";" str 
+  ':':rest -> idTrim rest
+  x:rest -> x : idTrim rest
+  [] -> []
+  
