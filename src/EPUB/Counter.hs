@@ -5,7 +5,7 @@ module EPUB.Counter where
 import Text.XML.HXT.Core hiding (xshow)
 
 import Data.Hashable (hash)
-import Data.Char (chr)
+import Data.Char (chr, isAlpha, isAlphaNum)
 import Data.String.Utils 
 import qualified Data.Map as Map
 
@@ -192,9 +192,11 @@ seekLabel whose how = deepest
     where mkLabel s = "name"++(show $ hash s)
    
 idTrim :: String -> String
-idTrim str = case str of 
-  '&':_ -> idTrim $ join ";" $ tail $ split ";" str 
-  ':':rest -> idTrim rest
-  x:rest -> x : idTrim rest
-  [] -> []
-  
+idTrim = idTrim' True
+  where idTrim' startchar str = case str of 
+          '&':_ -> idTrim' False $ join ";" $ tail $ split ";" str 
+          a:rest -> case startchar of
+            True  -> if isAlpha a then a : idTrim' False rest else idTrim' False rest
+            False -> if isAlphaNum a || ('_' == a) || ('-' == a) || ('.' == a)
+                     then a : idTrim' False rest else idTrim' False rest
+          [] -> []

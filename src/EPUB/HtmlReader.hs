@@ -43,11 +43,13 @@ readHtml filename labels mathSnipets label n t = do
                    ] filename
       >>>
       processBottomUp (
-                
+        (processAttrl (changeAttrValue idTrim `when` hasName "id"))
+        `when` hasName "li"
+        >>>
         -- Inline elements        
         (this >>> processAttrl ((setAttrName (mkName "id") >>> changeAttrValue idTrim) `when` hasAttr "name"
                                 <+>
-                                (setAttrName (mkName "href") >>> changeAttrValue idTrim) `when` hasAttr "href")) 
+                                (setAttrName (mkName "href") >>> changeAttrValue idTrim) `when` hasAttr "href"))
         `when` hasName "a"
         >>>
         (mkExternalLink $< (this >>> getChildren)) `when` hasName "url"
