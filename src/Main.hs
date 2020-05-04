@@ -70,9 +70,9 @@ main = do
     readDocument [withValidate no] book
     >>>
     fromSLA (0,"frontmatter", "")
-    (multi (ifA (hasName "include")
-            (nextState . (\(filename, numOfh1) (n,x,_) 
-                          -> ( n+numOfh1
+    (deep (ifA (hasName "include")
+            (nextState . (\(filename, (numOfh1, (cur,_,_))) (n,x,_) 
+                          -> ( (if cur==0 then numOfh1 else n+numOfh1)
                              , (if numOfh1 == 0 && x == "chapter"
                                 then "part"
                                 else (if x == "part" then "chapter" else x))
@@ -82,7 +82,9 @@ main = do
                                ((\f -> case Map.lookup f hOnesInFiles of
                                     Just i -> constA i
                                     Nothing -> constA 0)
-                                $< (getChildren >>> getText))))
+                                $< (getChildren >>> getText))
+                                &&&
+                               getState))
             (ifA (hasName "mainmatter")
              (constA (0, "chapter", "") >>> setState)
              (ifA (hasName "appendix")
@@ -96,7 +98,7 @@ main = do
       sequentNumbers = map (\(n,_,_) -> n) tempHtmlFiles
       hOneTypes = map (\(_,t,_) -> t) tempHtmlFiles
       htmlFilenames = map (\(_,_,f) -> f) tempHtmlFiles
-      htmlFiles' = zip3 (shift sequentNumbers) hOneTypes htmlFilenames
+      htmlFiles' = zip3 sequentNumbers hOneTypes htmlFilenames
       htmlFiles = seqPartNumber 0 htmlFiles'
   
   -- Retrieving reference-ids from all the html files and letting each id be pair with the filename,
@@ -108,15 +110,15 @@ main = do
                                          ,withValidate no
                                          ] s
                             >>>
-                            multi (ifA (hasName "ref" <+> hasName "pref" <+> hasName "pageref")
+                            multi (ifA (hasName "ref" <+> hasName "a" <+> hasName "li" <+> hasName "pref" <+> hasName "pageref")
                                    (constA "")
-                                   (getAttrValue "label")))
+                                   (getAttrValue "label" <+> getAttrValue "id")))
 --             return $ map (flip (,) s) $ filter (/="") links
              return $ map (\link -> (link, (resolveHierarchy s)++s)) $ filter (/="") links
          ) htmlFilenames
   let internalLinkLabels = Map.fromList $ concat labelsAndFiles
   
---  print internalLinkLabels 
+--  print internalLinkLabels
   
   maths <- mapM mathElemToResourceName htmlFilenames
   mapM_ (\(mathimagepath, equation) -> genImageFromEqString mathimagepath equation) $ concat maths

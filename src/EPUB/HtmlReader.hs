@@ -7,6 +7,7 @@ import Data.Hashable ( hash )
 import qualified Data.String.Utils as String (split)
 
 import qualified Data.Map as Map
+import Data.List (isPrefixOf)
 
 import qualified Data.ByteString.Lazy as B
 import Data.ByteString.Lazy.UTF8 ( fromString )
@@ -33,7 +34,7 @@ readHtml ::    FilePath
             -> Int                               -- chapter number
             -> String                            -- whether chapter or appendix
             -> IO B.ByteString
-readHtml filename labels mathSnipets label n t = do
+readHtml filename labels mathSnipets labelmap n t = do
 
   body <-
     runX (
@@ -43,20 +44,19 @@ readHtml filename labels mathSnipets label n t = do
                    ] filename
       >>>
       processBottomUp (
-        (processAttrl (changeAttrValue idTrim `when` hasName "id"))
-        `when` hasName "li"
-        >>>
         -- Inline elements        
-        (this >>> processAttrl ((setAttrName (mkName "id") >>> changeAttrValue idTrim) `when` hasAttr "name"
-                                <+>
-                                (setAttrName (mkName "href") >>> changeAttrValue idTrim) `when` hasAttr "href"))
+        (processAttrl ((changeAttrValue idTrim) `when` hasName "id"
+                       >>>
+                       (changeAttrValue (putFileName filename)) `when` hasName "href"
+                       >>>
+                       (setAttrName (mkName "id") >>> changeAttrValue idTrim) `when` hasName "name"))
         `when` hasName "a"
         >>>
         (mkExternalLink $< (this >>> getChildren)) `when` hasName "url"
         >>>
         (mkInternalLinkPage labels $< (getAttrValue "label")) `when` hasName "pageref"
         >>>
-        (mkInternalLink labels label $< (getAttrValue "label")) `when` hasName "ref"
+        (mkInternalLink labels labelmap $< (getAttrValue "label")) `when` hasName "ref"
         >>>
         (eelem "b" += (this >>> getChildren)) `when` (hasName "kw" <+> hasName "em" <+> hasName "b")
         >>>
@@ -80,7 +80,13 @@ readHtml filename labels mathSnipets label n t = do
          += (getChildren >>> (ifA (hasName "title") ((txt . (++"： ")) $< (this /> getText)) this)))
          `when` hasName "footnote"
         >>>
-        
+        -- Footnotes in Pandoc's HTML
+        (eelem "li"
+          += (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id"))
+          += (getChildren))
+        `when` hasAttr "role"
+        `when` hasName "li"
+        >>>
         
         -- Block elements
         (eelem "p" 
@@ -120,7 +126,7 @@ readHtml filename labels mathSnipets label n t = do
          += (getChildren
              >>>
              (ifA (hasName "title")
-              ((putLabel . (++"column") $< getTextFromNode label) <+> (eelem "h4" += getChildren))
+              ((putLabel . (++"column") $< getTextFromNode labelmap) <+> (eelem "h4" += getChildren))
               this)))
         `when` hasName "column"
         >>>
@@ -131,8 +137,27 @@ readHtml filename labels mathSnipets label n t = do
              <+> getChildren))
         `when` hasName "h0"
       
-
-        
+        -- Prevent nested captions
+        >>>
+        (eelem "figure"
+         +=
+         (this /> choiceA 
+          [ (hasName "figcaption" >>> hasAttr "id"):-> this
+          , hasName "figcaption" :-> getChildren
+          , this :-> this
+          ]))
+        `when`
+        hasName "figure"
+        >>>
+        (eelem "table"
+         +=
+         (this /> choiceA 
+          [ (hasName "caption" >>> hasAttr "id"):-> this
+          , hasName "caption" :-> getChildren
+          , this :-> this
+          ]))
+        `when`
+        hasName "table"
         
         -- Misc
         >>>
@@ -183,7 +208,7 @@ readHtml filename labels mathSnipets label n t = do
                     (none)))))
       
       >>>
-      genChapSecSubsec n t label
+      genChapSecSubsec n t labelmap
       
       >>>
       mathElem filename
@@ -211,8 +236,8 @@ resolveHierarchy s =
   (concat . replicate (length $ (filter (/=".") $ FP.splitPath (FP.takeDirectory s)))) "../"
 
 getTextFromNode :: (ArrowXml a) => (Map.Map String (String, String)) -> a XmlTree String
-getTextFromNode  label = 
-  (listA (getChildren >>> multi ((replaceLabel label $< (getAttrValue "label")) `when` hasName "ref") >>> getText))
+getTextFromNode  labelmap = 
+  (listA (getChildren >>> multi ((replaceLabel labelmap $< (getAttrValue "label")) `when` hasName "ref") >>> getText))
   >>> arr concat
 
 putLabel :: (ArrowXml a) => String -> a XmlTree XmlTree
@@ -235,7 +260,7 @@ mkInternalLinkPage linkfiles label =
       Just filename -> filename++"#"++(idTrim label)
       Nothing -> (idTrim label)
 
-mkInternalLink linkfiles map label = 
+mkInternalLink linkfiles labelmap label = 
   eelem "a"
   += sattr "href" labelfile
   += labelinfo
@@ -243,12 +268,12 @@ mkInternalLink linkfiles map label =
     labelfile = case Map.lookup label linkfiles of
       Just filename -> filename++"#"++(idTrim label)
       Nothing -> (idTrim label)
-    labelinfo = replaceLabel map label
+    labelinfo = replaceLabel labelmap label
   
-replaceLabel map label = 
+replaceLabel labelmap label = 
   txt labelinfo
   where 
-    labelinfo = case Map.lookup label map of
+    labelinfo = case Map.lookup label labelmap of
       Just (counter, title) -> mkLinkenTitle label counter title
       Nothing -> "????"
     mkLinkenTitle label counter title = case take 3 label of
@@ -262,6 +287,12 @@ replaceLabel map label =
       "Wir" -> counter
       "mac" -> counter
       _ -> "[reference]"
+
+putFileName :: String -> String -> String
+putFileName filename x = 
+  case "http" `isPrefixOf` x of
+    True -> x
+    False -> filename ++ "#" ++ (idTrim x)
 
 ftnMark :: (ArrowXml a) => a XmlTree XmlTree
 ftnMark = fromSLA 0 $
@@ -302,6 +333,8 @@ genChapSecSubsec n t label =
     processBottomUp (
        ((eelem "h1"
          += (putLabel . ("h1"++) $< (this >>> getTextFromNode label))
+         += (ifA (hasAttr "id") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id")) (none))
+         += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none))
          += (ifA (hasAttr "nonum")
              (getChildren)
              (case t of 
@@ -313,6 +346,8 @@ genChapSecSubsec n t label =
        >>>
        ((eelem "h2"
          += (putLabel . ("h2"++) $< (this >>> getTextFromNode label))
+         += (ifA (hasAttr "id") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id")) (none))
+         += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none))
          += (ifA (hasAttr "nonum")
              (getChildren)
              (case t of 
@@ -324,6 +359,8 @@ genChapSecSubsec n t label =
        >>>
        ((eelem "h3"
          += (putLabel . ("h3"++) $< (this >>> getTextFromNode label))
+         += (ifA (hasAttr "id") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id")) (none))
+         += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none))
          += (ifA (hasAttr "nonum")
              (getChildren)
              (case t of
@@ -348,6 +385,7 @@ genChapSecSubsec n t label =
              += ((txt . getFigure) $< nextFigure)
              += txt "："
              += getChildren
+             += (ifA (hasAttr "id") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id")) (none))
              += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none)))
           , hasName "p" :-> this
           , hasName "pre" :-> this
@@ -371,6 +409,7 @@ genChapSecSubsec n t label =
              += ((txt . getTable) $< nextTable) 
              += txt ": " 
              += getChildren
+             += (ifA (hasAttr "id") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id")) (none))
              += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none)))
           , this :-> this
           ]))

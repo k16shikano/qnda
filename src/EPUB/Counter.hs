@@ -148,16 +148,15 @@ readLabelInfo htmlFiles = do
                       >>>
                       fromSLA (n,0,0,0,0,0) (genHeaders t)
                       >>>
-                      (deepest
-                       ((ifA (hasName "entry") (this) (none))
+                      (deep
+                       (hasName "entry")
                         >>>
-                        (deep (ifA (hasName "label") (getChildren >>> getText) (none))
+                        deepest (ifA (hasName "label") (getChildren >>> getText) (none))
                          &&&
-                         deep (ifA (hasName "hhead") (getChildren >>> getText) (none))
+                        deepest (ifA (hasName "hhead") (getChildren >>> getText) (none))
                          &&&
-                         deep (ifA (hasName "hbody") (getChildren >>> getText) (none))))))
+                        deepest (ifA (hasName "hbody") (getChildren >>> getText) (none))))
              ) htmlFiles
-
   return $ Map.fromList $ concat headers
 
 genHeaders t = processBottomUp (
@@ -174,29 +173,28 @@ genHeaders t = processBottomUp (
   (processChildren $ seekTableLabel t) `when` (hasName "table"))
 
 seekLabel :: String -> SLA CounterState XmlTree XmlTree -> SLA CounterState XmlTree XmlTree
-seekLabel whose how = deepest
-                      ((ifA (hasName whose) (this) (none))
-                       >>>
-                       replaceChildren
+seekLabel whose how = deepest (hasName whose)
+                      >>>
+                      (replaceChildren
                        (eelem "entry"
                         += (eelem "label" 
-                            += choiceA [ hasAttr "id" :->
+                            += choiceA [ (hasAttr "id") :->
                                          (txt . idTrim $< getAttrValue "id")
-                                       , hasAttr "label" :->
+                                       , (hasAttr "label") :->
                                          (txt . idTrim $< getAttrValue "label")
                                        , this :->
                                          (txt . mkLabel $< (getChildren >>> getText))
                                       ])                          
                         += (eelem "hhead" += how)
-                        += (eelem "hbody" += (txt $< (getChildren >>> getText)))))
+                        += (eelem "hbody" += (txt $< deepest (getChildren >>> getText)))))
     where mkLabel s = "name"++(show $ hash s)
    
 idTrim :: String -> String
-idTrim = idTrim' True
+idTrim = idTrim' False
   where idTrim' startchar str = case str of 
           '&':_ -> idTrim' False $ join ";" $ tail $ split ";" str 
           a:rest -> case startchar of
             True  -> if isAlpha a then a : idTrim' False rest else idTrim' False rest
-            False -> if isAlphaNum a || ('_' == a) || ('-' == a) || ('.' == a)
+            False -> if isAlphaNum a || ('_' == a) || ('-' == a) || ('.' == a) || (':' == a)
                      then a : idTrim' False rest else idTrim' False rest
           [] -> []
