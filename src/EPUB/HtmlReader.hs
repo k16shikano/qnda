@@ -47,7 +47,7 @@ readHtml filename labels mathSnipets labelmap n t = do
         -- Inline elements        
         (processAttrl ((changeAttrValue idTrim) `when` hasName "id"
                        >>>
-                       (changeAttrValue (putFileName filename)) `when` hasName "href"
+                       (changeAttrValue (putFileName filename labels)) `when` hasName "href"
                        >>>
                        (setAttrName (mkName "id") >>> changeAttrValue idTrim) `when` hasName "name"))
         `when` hasName "a"
@@ -288,11 +288,13 @@ replaceLabel labelmap label =
       "mac" -> counter
       _ -> "[reference]"
 
-putFileName :: String -> String -> String
-putFileName filename x = 
+putFileName :: String -> (Map.Map String String) -> String -> String
+putFileName filename label x = 
   case "http" `isPrefixOf` x of
     True -> x
-    False -> filename ++ "#" ++ (idTrim x)
+    False -> case Map.lookup (idTrim x) label of
+      Just filename' -> filename' ++ "#" ++ (idTrim x)
+      Nothing -> filename ++ "#" ++ (idTrim x)
 
 ftnMark :: (ArrowXml a) => a XmlTree XmlTree
 ftnMark = fromSLA 0 $
