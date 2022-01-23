@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                qnda
-version:             0.1.1.0
+version:             0.1.2.0
 synopsis:            Build EPUB3 book from HTML files
 -- description:         
 homepage:            https://github.com/k16shikano/qnda
@@ -40,5 +40,6 @@ executable qnda
                        , parsec
                        , MissingH
                        , mtl
+                       , optparse-applicative
   hs-source-dirs:      src
   default-language:    Haskell2010

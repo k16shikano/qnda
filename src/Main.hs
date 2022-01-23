@@ -20,17 +20,44 @@ import qualified Codec.Archive.Zip as ZIP
 
 import EPUB.HtmlReader (readHtml, getTextFromNode, resolveHierarchy) 
 import EPUB.AuxReader (readAux)
-import EPUB.MathReader (mathElemToResourceName, genImageFromEqString)
+import EPUB.MathReader (configEquations)
 import EPUB.ImageReader (imagePathToResourceName)
 import EPUB.MetaInformation (mkCoverpage, genOkuzuke, getMetaInfo, mkOpf, mkContainer, getIsbn)
 import EPUB.Counter (readLabelInfo)
 import EPUB.Toc (mkTocpage, mkNcx, mkHeaderCnt)
 
+import Options.Applicative
+import Data.Semigroup ((<>))
+
 import qualified Debug.Trace as DT (trace)
 
 -- main
+
 main :: IO ()
-main = do
+main = epub =<< execParser opts
+  where
+    opts = info (options <**> helper)
+      (fullDesc
+       <> progDesc "Make EPUB from HTML"
+       <> header "qnda - an epub maker" )
+
+data CmdOpt = CmdOpt {
+  math :: String,
+  image  :: String,
+  file :: FilePath
+}
+
+options :: Parser CmdOpt
+options = CmdOpt
+          <$> strOption
+              ( long "math" <> short 'm' <> value "png" <> metavar "MATH-TYPE" <> help "Type of mathmatical equations")
+          <*> strOption
+              ( long "image" <> short 'i' <> value "png" <> metavar "IMG-TYPE" <> help "Type of images")
+          <*> strArgument
+              ( help "input book.xhtml file" <> metavar "FILE" <> action "file" )
+
+epub :: CmdOpt -> IO ()
+epub (CmdOpt mathtype imgtype book) = do
   epochtime <- floor `fmap` getPOSIXTime  
   let mkEntry path content = ZIP.toEntry path epochtime content
   let cssfiles = ["css/epub.css", "css/fonts.css"]
@@ -44,7 +71,6 @@ main = do
   let fontsdir = "fonts"
   let outputFileName = "output.epub"
   
-  [book] <- getArgs
   isbn <- getIsbn book
   
   coverfile <- mkCoverpage coverimg
@@ -120,21 +146,18 @@ main = do
   
 --  print internalLinkLabels
   
-  maths <- mapM mathElemToResourceName htmlFilenames
-  mapM_ (\(mathimagepath, equation) -> genImageFromEqString mathimagepath equation) $ concat maths
-  let mathSnipets = Map.fromList $ concat maths
-  let mathimages = map fst $ concat maths
-  mathImageEntries <- mapM (ZIP.readEntry []) mathimages
+  (mathImages, mathImageEntries') <- configEquations mathtype htmlFilenames
+  mathImageEntries <- mathImageEntries'
 
   labelmap <- readLabelInfo htmlFiles
-  htmlData <- mapM (\(n,t,f) -> readHtml f internalLinkLabels mathSnipets labelmap n t) htmlFiles
+  htmlData <- mapM (\(n,t,f) -> readHtml f internalLinkLabels mathtype labelmap n t) htmlFiles
   let htmlEntries = zipWith (\(n,t,f) d -> mkEntry f d) htmlFiles htmlData
 
   images <- liftM concat $ mapM imagePathToResourceName htmlFilenames
   imageEntries <- mapM (ZIP.readEntry []) images
   
   metadata <- getMetaInfo book
-  opf <- mkOpf metadata htmlFiles images mathimages (coverimg, coverfilename) tocpagefile okuzukepagefile ncxfile cssfiles
+  opf <- mkOpf metadata htmlFiles images mathImages (coverimg, coverfilename) tocpagefile okuzukepagefile ncxfile cssfiles
   let opfEntry = mkEntry "content.opf" $ fromString . xshow $ opf
 
   -- extract all the header elements to generate toc and ncx

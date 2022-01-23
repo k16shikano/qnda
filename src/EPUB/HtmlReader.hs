@@ -14,27 +14,21 @@ import Data.ByteString.Lazy.UTF8 ( fromString )
 
 import qualified System.FilePath.Posix as FP
 
-import EPUB.MathReader
+import EPUB.MathReader (mathElem)
 import EPUB.ImageReader
 import EPUB.Counter
 
 
 -- import qualified Debug.Trace as DT (trace)
 
-mkHtml :: FilePath -> (Map.Map String String) -> (Map.Map String String) -> (Map.Map String (String, String))
-          -> Int -> String -> IO B.ByteString
-mkHtml f labels mathsnipets label n t = do 
-  let body = readHtml f labels mathsnipets label n t
-  body 
-
 readHtml ::    FilePath 
             -> (Map.Map String String)           -- Labels for internal links 
-            -> (Map.Map String String)           -- Equations to be converted into images
+            -> String                            -- Equations with png/svg/mathml
             -> (Map.Map String (String, String)) -- Title header by label
             -> Int                               -- chapter number
             -> String                            -- whether chapter or appendix
             -> IO B.ByteString
-readHtml filename labels mathSnipets labelmap n t = do
+readHtml filename labels mathtype labelmap n t = do
 
   body <-
     runX (
@@ -211,7 +205,7 @@ readHtml filename labels mathSnipets labelmap n t = do
       genChapSecSubsec n t labelmap
       
       >>>
-      mathElem filename
+      mathElem mathtype filename
       >>>
       imgElem filename
             
