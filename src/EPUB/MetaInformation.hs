@@ -205,7 +205,6 @@ mkOpfMetaData (title, (isbn, (rights, date))) authors =
                                       += (sattr "refines" ("#creator"++(show id)))
                                       += (sattr "property" "role")
                                       += (sattr "scheme" "marc:relators")
-                                      += (sattr "id" "role")
                                       += (txt role)))
            (zip authors [1..]))
   += (eelem "meta"
