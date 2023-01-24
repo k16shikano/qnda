@@ -187,7 +187,10 @@ readHtml filename labels mathtype labelmap n t = do
                    += sattr "rel" "stylesheet" 
                    += sattr "type" "text/css"
                    += sattr "href" (resolveHierarchy filename ++ "css/fonts.css"))
-               += (this /> hasName "title")
+               += (this //> choiceA
+                     [ hasName "title" :-> this
+                     , this :-> none
+                     ])
                += (eelem "meta" += sattr "charset" "utf-8"))
            += (deep 
                (ifA (hasName "body") 
