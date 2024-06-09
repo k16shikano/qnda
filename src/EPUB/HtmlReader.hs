@@ -349,11 +349,8 @@ genChapSecSubsec n t label =
          += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none))
          += (ifA (hasAttr "nonum")
              (getChildren)
-             (case t of 
-                "chapter" -> (txt . (\c -> (getChapter c)++"."++(getSection c)++": ")) $< nextSection
-                "appendix" -> (txt . (\c -> (getAppendix c)++"."++(getSection c)++": ")) $< nextSection
-                _ -> (txt "")
-              <+> (txt $< (this //> getText)))))
+             ((txt . (\c -> mkSectionHead (getChapter c) (getSection c))) $< nextSection)
+             <+> (txt $< (this //> getText))))
         `when` hasName "h2")
        >>>
        ((eelem "h3"
@@ -382,7 +379,7 @@ genChapSecSubsec n t label =
                     _ -> txt "")
              += txt "."
              += ((txt . getFigure) $< nextFigure)
-             += txt "："
+             += txt ". "
              += getChildren
              += (ifA (hasAttr "id") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id")) (none))
              += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none)))
