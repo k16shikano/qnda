@@ -136,7 +136,8 @@ epub (CmdOpt mathtype imgtype book) = do
                                          ,withValidate no
                                          ] s
                             >>>
-                            multi (ifA (hasName "ref" <+> hasName "a" <+> hasName "li" <+> hasName "pref" <+> hasName "pageref")
+                            multi (ifA (hasName "ref" <+> hasName "a" <+> hasName "li" <+> hasName "pref" <+> hasName "pageref" 
+                                        <+> (hasName "aside" >>> hasAttrValue "epub:type" (=="footnote")))
                                    (constA "")
                                    (getAttrValue "label" <+> getAttrValue "id")))
 --             return $ map (flip (,) s) $ filter (/="") links

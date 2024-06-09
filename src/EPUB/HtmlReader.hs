@@ -66,21 +66,6 @@ readHtml filename labels mathtype labelmap n t = do
         (eelem "tt" += (this >>> getChildren))
         `when` (hasName "filename" <+> hasName "tt")
         >>>
-       
-        
-        -- Footnotes
-        (eelem "span"
-         += sattr "class" "footnote" 
-         += (getChildren >>> (ifA (hasName "title") ((txt . (++"： ")) $< (this /> getText)) this)))
-         `when` hasName "footnote"
-        >>>
-        -- Footnotes in Pandoc's HTML
-        (eelem "li"
-          += (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id"))
-          += (getChildren))
-        `when` hasAttr "role"
-        `when` hasName "li"
-        >>>
         
         -- Block elements
         (eelem "p" 
@@ -174,6 +159,19 @@ readHtml filename labels mathtype labelmap n t = do
         )
       
       >>>
+      -- Footnotes
+        (fromSLA 0 $ processTopDown
+          (ifA (hasName "a" >>> hasAttrValue "class" (isPrefixOf "footnote-ref"))
+            (reNumberFootnoteRef $< (nextState (+1) >>> arr show)) this))
+      >>>
+        (processTopDown $
+          ((eelem "section"
+            += sattr "class" "footnotes"
+            += (eelem "ol"
+                += (getChildren >>> reNumberedFootnoteSection)))
+          `when` (hasName "section" >>> hasAttrValue "class" (isPrefixOf "footnotes"))))
+      >>>
+      
       replaceChildren 
       (spi "xml" "version=\"1.0\" encoding=\"UTF-8\""
        <+>(eelem "html" 
@@ -293,39 +291,42 @@ putFileName filename label x =
       Just filename' -> filename' ++ "#" ++ (idTrim x)
       Nothing -> filename ++ "#" ++ (idTrim x)
 
-ftnMark :: (ArrowXml a) => a XmlTree XmlTree
-ftnMark = fromSLA 0 $
-  processBottomUp $ 
-  (mkFtnMark $< (nextState (+1) >>> arr show))
-  `when` (hasName "footnote")
+reNumberFootnoteRef n = eelem "a"
+  += sattr "href" (fn <> n)
+  += sattr "id" (fnref <> n)
+  += sattr "epub:type" "noteref"
+  += (eelem "sup" += txt n)
+  where
+    fn = "#fn"
+    fnref = "fnref"
 
-mkFtnMark :: (ArrowXml a) => String -> a XmlTree XmlTree
-mkFtnMark n = eelem "a"
-              += sattr "href" ("#ftn"++n)
-              += (eelem "sup"
-                  += txt ("†"++n))
-              <+> (eelem "a"
-                  += (sattr "id" . idTrim $ "ntf"++n))
-
-ftnText :: (ArrowXml a) => a XmlTree XmlTree
-ftnText = fromSLA 0 $
-  processBottomUp $ 
-  (mkFtnText $<< (nextState (+1) >>> arr show) &&& this)
-  `when` (hasName "footnote")
-
-mkFtnText :: (ArrowXml a) => String -> XmlTree -> a XmlTree XmlTree
-mkFtnText n t = -- eelem "mbp:pagebreak" -- trick for kindle
-                -- <+> 
-                (eelem "div" 
-                 += sattr "class" "footnote"
-                 += sattr "style" "page-break-before: always;"
-                 += eelem "a"
-                 += (sattr "id" . idTrim $ "ftn"++n)
-                 += (eelem "span" += txt ("†"++n) )
-                 <+> (eelem "div"
-                      += (constA t >>> getChildren))
-                 <+> (eelem "a" += sattr "href" ("#ntf"++n) += charRef 8617))
-
+reNumberedFootnoteSection :: (ArrowXml a) => a XmlTree XmlTree
+reNumberedFootnoteSection =
+  fromSLA 0 $ deep
+    (ifA (hasName "li")
+         (processTopDown $
+           (addAttr "id" $< (nextState (+1) >>> arr show >>> arr (fn++))
+             >>> setQName (mkName "li")
+             >>> addAttr "epub:type" "footnote")
+             `when`
+             (hasName "li")
+           >>>
+           (addAttr "href" $< (getState >>> arr show >>> arr (fnref++))
+             >>> removeAttr "role")
+             `when`
+             (hasName "a" >>> hasAttrValue "class" (=="footnote-back"))
+           >>>
+           (this +=
+             (eelem "a" 
+             += sattr "epub:type" "noteref" 
+             += (sattr "href" $< (getState >>> arr show >>> arr (fnref++)))
+             += (txt $< (getState >>> arr show >>> arr (++". ")))))
+            `when`
+             (hasName "span" >>> hasAttr "id"))
+         (none))
+  where
+    fn = "fn"
+    fnref = "#fnref"
 
 genChapSecSubsec n t label = 
   fromSLA ((n,0,0,0,0,0) :: CounterState) (
