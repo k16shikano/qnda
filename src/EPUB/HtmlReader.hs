@@ -175,6 +175,7 @@ readHtml filename labels mathtype labelmap n t = do
       replaceChildren 
       (spi "xml" "version=\"1.0\" encoding=\"UTF-8\""
        <+>(eelem "html" 
+           += sattr "xmlns:epub" "http://www.idpf.org/2007/ops"
            += sattr "xmlns" "http://www.w3.org/1999/xhtml"
            += (eelem "head" 
                += (eelem "link" 
