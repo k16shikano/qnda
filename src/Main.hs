@@ -145,7 +145,7 @@ epub (CmdOpt mathtype imgtype book) = do
          ) htmlFilenames
   let internalLinkLabels = Map.fromList $ concat labelsAndFiles
   
---  print internalLinkLabels
+-- print internalLinkLabels
   
   (mathImages, mathImageEntries') <- configEquations mathtype htmlFilenames
   mathImageEntries <- mathImageEntries'

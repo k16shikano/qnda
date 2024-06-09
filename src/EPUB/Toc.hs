@@ -146,14 +146,14 @@ mkTocTree = mkTreeFromHeaderList mkTocRoot mkTocNode
 
 mkTocRoot :: (ArrowList a, ArrowXml a) => HeaderText -> FilePath -> InTocText -> Int -> (String -> Bool) -> HeaderList -> a b XmlTree
 mkTocRoot headertext filename chapsec number children rest = 
-  (mkTocNode headertext filename chapsec number
-   += ifA (childnode >>> isElem)
-        (eelem "ol"
-         += (mkTocTree $ takeChildren children rest))
-         none)
-  <+> (mkTocTree $ dropChildren children rest)
-  where
-    childnode = mkTocTree $ takeChildren children rest
+  let lowerTocEntry = takeChildren children rest
+  in  (mkTocNode headertext filename chapsec number
+       += (if (null lowerTocEntry) 
+           then none
+           else (eelem "ol"
+                 += (mkTocTree $ takeChildren children rest)))
+       <+> (mkTocTree $ dropChildren children rest))
+
 
 mkTocNode :: (ArrowList a, ArrowXml a) => HeaderText -> FilePath -> InTocText -> Int -> a b XmlTree
 mkTocNode headertext filename chapsec number =
