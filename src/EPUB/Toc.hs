@@ -81,6 +81,8 @@ mkTreeFromHeaderList whenRoot whenNode c@(((("appendix",(h,(f,cnt))),cs),n) : ((
   whenRoot ("h1"++h) f cs n (\h -> (h=="h2") || (h=="h3")) (tail c)
 mkTreeFromHeaderList whenRoot whenNode c@(((("h1",(h,(f,cnt))),cs),n) : ((("h1",(_,_)),_),_) : _) = -- when head is h1 and the rest are h1
   whenRoot ("h1"++h) f cs n (\h -> (h=="h2") || (h=="h3")) (tail c)
+mkTreeFromHeaderList whenRoot whenNode c@(((("h1",(h,(f,cnt))),cs),n) : []) = -- when head is h1 and the rest is null (i.e. the last chapter)
+  whenRoot ("h1"++h) f cs n (\h -> (h=="h2") || (h=="h3")) []
 mkTreeFromHeaderList whenRoot whenNode c@(((("h1",(h,(f,cnt))),cs),n) : ((("h2",(_,_)),_),_) : _) = -- when head is h1 and the rest are h2 or h3
   whenRoot ("h1"++h) f cs n (\h -> (h=="h2") || (h=="h3")) (tail c)
 mkTreeFromHeaderList whenRoot whenNode c@(((("h2",(h,(f,cnt))),cs),n) : ((("h3",(_,_)),_),_) : _) = -- when head is h1 and the rest are h3 but h2
