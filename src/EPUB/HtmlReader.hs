@@ -132,7 +132,10 @@ readHtml filename labels mathtype labelmap n t = do
          +=
          (this /> choiceA 
           [ (hasName "caption" >>> hasAttr "id"):-> this
-          , hasName "caption" :-> getChildren
+          , hasName "caption" :->
+              ifA (getChildren >>> hasName "caption")
+                  (getChildren >>> hasName "caption")
+                  this
           , this :-> this
           ]))
         `when`
@@ -238,8 +241,10 @@ putLabel :: (ArrowXml a) => String -> a XmlTree XmlTree
 putLabel t =
   ((ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none))
    <+>
-   (eelem "a" += (sattr "id" . idTrim $ (mkLabel t))))
-  where mkLabel s = "name"++(show $ hash s)
+   (ifA (hasAttr "id")
+        (eelem "a" += (sattr "id" . mkLabel $< getAttrValue "id"))
+        (eelem "a" += (sattr "id" $ mkLabel t))))
+  where mkLabel s = "name" ++ show (hash s)
 
 mkExternalLink body = eelem "a"
                       += (sattr "href" $< (constA body >>> getText))
