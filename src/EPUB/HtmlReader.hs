@@ -132,10 +132,7 @@ readHtml filename labels mathtype labelmap n t = do
          +=
          (this /> choiceA 
           [ (hasName "caption" >>> hasAttr "id"):-> this
-          , hasName "caption" :->
-              ifA (getChildren >>> hasName "caption")
-                  (getChildren >>> hasName "caption")
-                  this
+          , hasName "caption" :-> getChildren
           , this :-> this
           ]))
         `when`
