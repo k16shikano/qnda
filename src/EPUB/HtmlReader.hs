@@ -241,10 +241,8 @@ putLabel :: (ArrowXml a) => String -> a XmlTree XmlTree
 putLabel t =
   ((ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none))
    <+>
-   (ifA (hasAttr "id")
-        (eelem "a" += (sattr "id" . mkLabel $< getAttrValue "id"))
-        (eelem "a" += (sattr "id" $ mkLabel t))))
-  where mkLabel s = "name" ++ show (hash s)
+   (eelem "a" += (sattr "id" . idTrim $ (mkLabel t))))
+  where mkLabel s = "name"++(show $ hash s)
 
 mkExternalLink body = eelem "a"
                       += (sattr "href" $< (constA body >>> getText))
@@ -359,14 +357,24 @@ genChapSecSubsec n t label =
         `when` hasName "h2")
        >>>
        ((eelem "h3"
-         += (putLabel . ("h3"++) $< (this >>> getTextFromNode label))
+         += (ifA (hasAttr "nonum")
+             (putLabel . ("h3"++) $< (this >>> getTextFromNode label))
+             (putLabel $<
+              ((nextSubSection >>>
+                arr (\c -> "h3"
+                            ++ (case t of
+                                  "appendix" -> getAppendix c
+                                  _ -> getChapter c)
+                            ++ "." ++ getSection c ++ "." ++ getSubSection c ++ "-"))
+               &&& (this >>> getTextFromNode label)
+               >>> arr (uncurry (++)))))
          += (ifA (hasAttr "id") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "id")) (none))
          += (ifA (hasAttr "label") (eelem "a" += (sattr "id" . idTrim $< getAttrValue "label")) (none))
          += (ifA (hasAttr "nonum")
              (getChildren)
              (case t of
-                "chapter" -> (txt . (\c -> (getChapter c)++"."++(getSection c)++"."++(getSubSection c)++": ")) $< nextSubSection
-                "appendix" -> (txt . (\c -> (getAppendix c)++"."++(getSection c)++"."++(getSubSection c)++": ")) $< nextSubSection
+                "chapter" -> (txt . (\c -> (getChapter c)++"."++(getSection c)++"."++(getSubSection c)++": ")) $< getState
+                "appendix" -> (txt . (\c -> (getAppendix c)++"."++(getSection c)++"."++(getSubSection c)++": ")) $< getState
                 _ -> txt ""
               <+> getChildren)))
         `when` hasName "h3")
