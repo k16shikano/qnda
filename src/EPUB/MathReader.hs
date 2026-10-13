@@ -8,6 +8,7 @@ import qualified System.Process as Process
 import System.Process (CreateProcess(..), StdStream(..))
 import System.Exit (ExitCode(..))
 import System.IO (hGetContents, hClose)
+import System.IO.Error (ioError, userError)
 import qualified System.FilePath.Posix as FP
 import qualified System.Process as Prc (readProcess)
 import  Data.List (isPrefixOf)
@@ -67,8 +68,10 @@ genImageFromEqString mathtype imagepath equation = do
       tempPdf = tempPrefix ++ ".pdf"
       tempCropPdf = tempPrefix ++ "-crop.pdf"
   IO.writeFile tempTex (latexTemplate equation)
-  (_, _, mhErr, ph1) <- Process.createProcess ((Process.proc "pdflatex"
-        ["-interaction=nonstopmode", "-output-directory=.", tempTex])
+  -- upLaTeX via ptex2pdf so Japanese in \\text{...} works
+  (_, _, mhErr, ph1) <- Process.createProcess ((Process.proc "ptex2pdf"
+        ["-u", "-l", "-ot", "-interaction=nonstopmode",
+         "-output-directory=.", tempTex])
         { std_out = NoStream, std_err = CreatePipe })
   errOutput <- case mhErr of
     Just hErr -> do
@@ -80,18 +83,26 @@ genImageFromEqString mathtype imagepath equation = do
   case mhErr of
     Just hErr -> hClose hErr
     Nothing -> return ()
-  unless (exitCode == ExitSuccess) $
-    putStrLn $ "pdflatex exited with code: " ++ show exitCode ++ unlines (lines errOutput)
-  convertToImage mathtype imagepath tempPdf tempCropPdf
+  case exitCode of
+    ExitSuccess -> convertToImage mathtype imagepath tempPdf tempCropPdf
+    _ -> do
+      putStrLn $ "ptex2pdf exited with code: " ++ show exitCode ++ unlines (lines errOutput)
+      ioError $ userError $ "ptex2pdf failed for " ++ imagepath
   (_, _, _, ph2) <- Process.createProcess ((Process.proc "sh" ["-c", "rm -f " ++ tempPrefix ++ "*"])
     { std_out = NoStream, std_err = NoStream })
   void $ Process.waitForProcess ph2
   where
-    convertToImage PNG imagepath tempPdf _ = do
-      (_, _, _, ph) <- Process.createProcess ((Process.proc "convert"
-        ["-strip", "-trim", "-density", "200", "+repage", tempPdf, "-flatten", imagepath])
+    convertToImage PNG imagepath tempPdf tempCropPdf = do
+      (_, _, _, ph1) <- Process.createProcess ((Process.proc "pdfcrop"
+        ["--margins", "2", tempPdf, tempCropPdf])
         { std_out = NoStream, std_err = NoStream })
-      void $ Process.waitForProcess ph
+      void $ Process.waitForProcess ph1
+      (_, _, _, ph2) <- Process.createProcess ((Process.proc "convert"
+        ["-density", "600", "-quality", "100", "-background", "white",
+         "-alpha", "remove", "-alpha", "off", "-type", "Grayscale",
+         tempCropPdf ++ "[0]", imagepath])
+        { std_out = NoStream, std_err = NoStream })
+      void $ Process.waitForProcess ph2
     convertToImage SVG imagepath tempPdf tempCropPdf = do
       (_, _, _, ph1) <- Process.createProcess ((Process.proc "pdfcrop" [tempPdf, tempCropPdf])
         { std_out = NoStream, std_err = NoStream })
@@ -99,14 +110,13 @@ genImageFromEqString mathtype imagepath equation = do
       (_, _, _, ph2) <- Process.createProcess ((Process.proc "pdf2svg" [tempCropPdf, imagepath])
         { std_out = NoStream, std_err = NoStream })
       void $ Process.waitForProcess ph2
-    latexTemplate body = "\\documentclass{standalone}\n"
-                    ++"\\usepackage{type1cm}\\usepackage[T1]{fontenc}"
-                    ++"\\usepackage{textcomp}"
-                    ++"\\usepackage{amsmath,amstext,amssymb,array}\n"
-                    ++"\\pagestyle{empty}\n"
-                    ++"\\begin{document}\n"
-                    ++ body
-                    ++"\n\\end{document}\n"
+    latexTemplate body =
+         "\\documentclass[dvipdfmx]{jsarticle}\n"
+      ++ "\\usepackage{amsmath,amstext,amssymb,array}\n"
+      ++ "\\pagestyle{empty}\n"
+      ++ "\\begin{document}\n"
+      ++ body
+      ++ "\n\\end{document}\n"
 
 -- equation settings in resource files
 
