@@ -28,15 +28,14 @@ genOkuzuke book = do
         &&& (multi $ hasName "isbn" /> getText)
         &&& (multi $ hasName "copyright" /> getText)
         &&& (multi $ hasName "copyright" >>> getAttrValue "year")
-        &&& (listA (multi $ hasName "printing") >>> arr reverse >>> arr head >>> getAttrValue "date")
-        &&& (listA (multi $ hasName "printing") >>> arr reverse >>> arr head /> getText))
+        &&& (listA (multi $ hasName "printing" >>> (getAttrValue "date" &&& (this /> getText)))))
        &&& listA (multi $ hasName "authors" /> hasName "name" >>> this &&& getAttrValue "role" >>> arr authorRole)))
      (none))))
 
 authorRole (name, "author") = (name, "aut")
 authorRole (name, "translator") = (name, "trl")
 
-mkOkuzuke (title, (isbn, (rights, (year, (date, version))))) authors =
+mkOkuzuke (title, (isbn, (rights, (year, printings)))) authors =
   spi "xml" "version=\"1.0\" encoding=\"UTF-8\""
   <+>
   (eelem "html"
@@ -47,7 +46,7 @@ mkOkuzuke (title, (isbn, (rights, (year, (date, version))))) authors =
    += (eelem "body"
        += eelem "hr"
        += (eelem "p" += (txt title))
-       += (eelem "p" += txt date += txt " " += txt version)
+       += catA (map (\(date, version) -> eelem "p" += txt date += txt " " += txt version) printings)
        += (eelem "div" += sattr "class" "author"
            += catA (map (\(name,role) -> eelem "p" += (constA name >>> getChildren))
                     authors))
@@ -205,7 +204,7 @@ mkOpfMetaData (title, (isbn, (rights, date))) authors =
                                       += (sattr "refines" ("#creator"++(show id)))
                                       += (sattr "property" "role")
                                       += (sattr "scheme" "marc:relators")
-                                      += (sattr "id" "role")
+                                      += (sattr "id" ("role"++(show id)))
                                       += (txt role)))
            (zip authors [1..]))
   += (eelem "meta"

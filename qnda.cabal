@@ -18,6 +18,7 @@ cabal-version:       >=1.12
 executable qnda
   main-is:             Main.hs
   other-modules:         EPUB.AuxReader
+                       , EPUB.Bibliography
                        , EPUB.Counter
                        , EPUB.HtmlReader
                        , EPUB.ImageReader
@@ -41,5 +42,6 @@ executable qnda
                        , MissingH
                        , mtl
                        , optparse-applicative
+                       , async
   hs-source-dirs:      src
   default-language:    Haskell2010

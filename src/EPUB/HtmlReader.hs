@@ -44,7 +44,7 @@ readHtml filename labels mathtype labelmap n t = do
                        (changeAttrValue (putFileName filename labels)) `when` hasName "href"
                        >>>
                        (setAttrName (mkName "id") >>> changeAttrValue idTrim) `when` hasName "name"))
-        `when` hasName "a"
+        `when` (hasName "a" >>> ifA (hasAttrValue "class" (=="citation")) none this)
         >>>
         (mkExternalLink $< (this >>> getChildren)) `when` hasName "url"
         >>>

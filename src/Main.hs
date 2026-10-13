@@ -25,6 +25,7 @@ import EPUB.ImageReader (imagePathToResourceName)
 import EPUB.MetaInformation (mkCoverpage, genOkuzuke, getMetaInfo, mkOpf, mkContainer, getIsbn)
 import EPUB.Counter (readLabelInfo)
 import EPUB.Toc (mkTocpage, mkNcx, mkHeaderCnt)
+import EPUB.Bibliography (extractCslEntries, mergeCslEntries, mkBibliographyPage, updateCitations)
 
 import Options.Applicative
 import Data.Semigroup ((<>))
@@ -67,6 +68,7 @@ epub (CmdOpt mathtype imgtype book) = do
   let tocpagefile = "toc.xhtml"
   let okuzukepagefile = "okuzuke.xhtml"
   let ncxfile = "toc.ncx"
+  let bibliographyfile = "bibliography.xhtml"
   let auxfile = "book.aux" -- if you will
   let fontsdir = "fonts"
   let outputFileName = "output.epub"
@@ -117,7 +119,9 @@ epub (CmdOpt mathtype imgtype book) = do
               (constA (0, "appendix", "") >>> setState) 
               (ifA (hasName "backmatter")
                (constA (0, "backmatter", "") >>> setState)
-               (none))))))
+               (ifA (hasName "bibliography")
+                (nextState (\(n,t,f) -> (n+1,t,bibliographyfile)))
+                (none)))))))
     )
   let shift ns = zipWith (-) ns (0 : map (\x -> x - 1) (zipWith (-) (drop 1 ns) ns))
   let tempHtmlFiles = filter (\(_,_,f) -> f/="") htmls
@@ -126,6 +130,13 @@ epub (CmdOpt mathtype imgtype book) = do
       htmlFilenames = map (\(_,_,f) -> f) tempHtmlFiles
       htmlFiles' = zip3 sequentNumbers hOneTypes htmlFilenames
       htmlFiles = seqPartNumber 0 htmlFiles'
+
+  cslEntries <-
+    mapM (\(n,t,f) -> extractCslEntries f) (filter (\(_,t,f) -> f/=bibliographyfile) htmlFiles)
+  let allCslEntries = mergeCslEntries $ concat cslEntries
+
+  (bibliography, citationMap) <- mkBibliographyPage allCslEntries
+  B.writeFile bibliographyfile $ fromString . xshow $ bibliography
   
   -- Retrieving reference-ids from all the html files and letting each id be pair with the filename,
   -- in order to make distinct ids in the epub file.  
@@ -151,7 +162,25 @@ epub (CmdOpt mathtype imgtype book) = do
   mathImageEntries <- mathImageEntries'
 
   labelmap <- readLabelInfo htmlFiles
-  htmlData <- mapM (\(n,t,f) -> readHtml f internalLinkLabels mathtype labelmap n t) htmlFiles
+  htmlData <- mapM (\(n,t,f) -> do
+    updatedHtml <- runX (
+      readDocument [withIndent yes
+                   ,withRemoveWS no
+                   ,withValidate no
+                   ] f
+      >>>
+      (if f == bibliographyfile
+         then this
+         else updateCitations citationMap bibliographyfile)
+      >>>
+      writeDocumentToString [ withIndent no
+                            , withRemoveWS no
+                            , withOutputXHTML
+                            , withXmlPi yes
+                            ])
+    B.writeFile f $ fromString $ concat updatedHtml
+    readHtml f internalLinkLabels mathtype labelmap n t
+    ) htmlFiles
   let htmlEntries = zipWith (\(n,t,f) d -> mkEntry f d) htmlFiles htmlData
 
   images <- liftM concat $ mapM imagePathToResourceName htmlFilenames
