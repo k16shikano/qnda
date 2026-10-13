@@ -120,6 +120,14 @@ genTableHeader t = txt ""
 seekTableLabel :: String -> SLA CounterState XmlTree XmlTree
 seekTableLabel headertype = seekLabel "caption" $ genTableHeader headertype
 
+seekTableLabelFromId :: String -> SLA CounterState XmlTree XmlTree
+seekTableLabelFromId headertype =
+  replaceChildren
+   (eelem "entry"
+    += (eelem "label" += (txt . idTrim $< getAttrValue "id"))
+    += (eelem "hhead" += genTableHeader headertype)
+    += (eelem "hbody" += (txt $< deepest (getChildren >>> getText))))
+
 
 getList :: CounterState -> String
 getList (_,_,_,_,_,n) = show n
@@ -173,7 +181,9 @@ genHeaders t = processBottomUp (
   >>>
   (processChildren $ seekFigureLabel t) `when` (hasName "figure")
   >>>
-  (processChildren $ seekTableLabel t) `when` (hasName "table"))
+  (ifA (hasAttr "id")
+       (seekTableLabelFromId t)
+       (processChildren $ seekTableLabel t)) `when` (hasName "table"))
 
 seekLabel :: String -> SLA CounterState XmlTree XmlTree -> SLA CounterState XmlTree XmlTree
 seekLabel whose how = deepest (hasName whose)
