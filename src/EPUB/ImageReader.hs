@@ -7,6 +7,7 @@ import Text.XML.HXT.Core hiding (xshow)
 import System.Directory (copyFile, createDirectoryIfMissing)
 import qualified System.FilePath.Posix as FP
 import qualified System.Process as Prc (readProcess)
+import Data.List (isInfixOf, isPrefixOf)
 
 import qualified Text.XML.HXT.DOM.XmlNode as XN
 import qualified Data.Tree.Class as Tree
@@ -61,18 +62,41 @@ imgElem f =
      processTopDown (
         (eelem "img" 
          += sattr "class" "figure"
-         += (styleAttr $< getAttrValue "width" &&& getAttrValue "height")
+         += (figureStyle $< (getAttrValue "width" &&& (getAttrValue "height" &&& getAttrValue "style")))
          += (imgAltAttr f $< getAttrValue "src" &&& getState)
          += (imgSrcAttr f (mkImgLead f) $< getAttrValue "src" &&& nextState (+1)))
         `when`
         (hasName "img" >>> 
          neg (hasAttrValue "class" (=="inlinemath") <+> hasAttrValue "class" (=="displaymath")))))
 
+-- Pandoc often puts image size in style= (not width=/height= attrs).
+figureStyle :: (ArrowXml a) => (String, (String, String)) -> a XmlTree XmlTree
+figureStyle (w, (h, sty))
+  | hasCssDim sty = sattr "style" (ensureFit sty)
+  | otherwise     = styleAttr (w, h)
+  where
+    hasCssDim s = "width:" `isInfixOf` s || "height:" `isInfixOf` s || "max-height:" `isInfixOf` s
+    ensureFit s
+      | "height:" `isInfixOf` s && not ("max-height:" `isInfixOf` s) =
+          fitBox (replace "height:" "max-height:" s)
+      | "max-height:" `isInfixOf` s =
+          fitBox s
+      | otherwise = s
+    fitBox s = trimSemi s ++ "max-width:100%;width:auto;height:auto;"
+    trimSemi s
+      | null s = s
+      | last s == ';' = s
+      | otherwise = s ++ ";"
+    replace old new xs
+      | old `isPrefixOf` xs = new ++ drop (length old) xs
+      | null xs = xs
+      | otherwise = head xs : replace old new (tail xs)
+
 styleAttr :: (ArrowXml a) => (String, String) -> a XmlTree XmlTree
 styleAttr (w,h) = (case (h,w) of
                   ("","") -> sattr "style" "width:90%;"
-                  ("",w')  -> sattr "style" $ "width:"++w'++";"
-                  (h',"")  -> sattr "style" $ "height:"++h'++";"
+                  ("",w')  -> sattr "style" $ "width:"++w'++";height:auto;"
+                  (h',"")  -> sattr "style" $ "max-height:"++h'++";max-width:100%;width:auto;height:auto;"
                   (h',w')   -> sattr "style" $ "width:"++w'++";height:"++h'++";")
 
 
