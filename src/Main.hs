@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy as B
 import Data.ByteString.Lazy.UTF8 (fromString)
 import qualified Data.Map as Map
 import Data.Hashable (hash)
+import Data.List (isInfixOf)
 
 import Control.Monad as M hiding (when)
 
@@ -82,6 +83,9 @@ epub (CmdOpt mathtype imgtype book) = do
   okuzuke <- genOkuzuke book
   let okuzukeEntry = mkEntry okuzukepagefile $ fromString . xshow $ okuzuke
   
+  bookText <- readFile book
+  let hasBibliography = "<bibliography" `isInfixOf` bookText
+  
   -- Qualifing each file with an information whether it's to be a chapter, frontmatter, or appendix.
   -- The information must resist in the "book" file.  
   hOnes <- runX (
@@ -131,12 +135,15 @@ epub (CmdOpt mathtype imgtype book) = do
       htmlFiles' = zip3 sequentNumbers hOneTypes htmlFilenames
       htmlFiles = seqPartNumber 0 htmlFiles'
 
-  cslEntries <-
-    mapM (\(n,t,f) -> extractCslEntries f) (filter (\(_,t,f) -> f/=bibliographyfile) htmlFiles)
-  let allCslEntries = mergeCslEntries $ concat cslEntries
-
-  (bibliography, citationMap) <- mkBibliographyPage allCslEntries
-  B.writeFile bibliographyfile $ fromString . xshow $ bibliography
+  citationMap <- if hasBibliography
+    then do
+      cslEntries <-
+        mapM (\(n,t,f) -> extractCslEntries f) (filter (\(_,t,f) -> f/=bibliographyfile) htmlFiles)
+      let allCslEntries = mergeCslEntries $ concat cslEntries
+      (bibliography, cmap) <- mkBibliographyPage allCslEntries
+      B.writeFile bibliographyfile $ fromString . xshow $ bibliography
+      return cmap
+    else return Map.empty
   
   -- Retrieving reference-ids from all the html files and letting each id be pair with the filename,
   -- in order to make distinct ids in the epub file.  
@@ -158,10 +165,13 @@ epub (CmdOpt mathtype imgtype book) = do
   
 -- print internalLinkLabels
   
-  (mathImages, mathImageEntries') <- configEquations mathtype htmlFilenames
+  auxlabels <- readAux auxfile
+  (mathImages, mathImageEntries', denseEq) <- configEquations auxlabels mathtype htmlFilenames
   mathImageEntries <- mathImageEntries'
 
-  labelmap <- readLabelInfo htmlFiles
+  htmlLabels <- readLabelInfo htmlFiles
+  let auxlabels' = Map.map (\(counter, _page) -> (counter, "")) auxlabels
+      labelmap = Map.unions [denseEq, htmlLabels, auxlabels']
   htmlData <- mapM (\(n,t,f) -> do
     updatedHtml <- runX (
       readDocument [withIndent yes
@@ -169,9 +179,9 @@ epub (CmdOpt mathtype imgtype book) = do
                    ,withValidate no
                    ] f
       >>>
-      (if f == bibliographyfile
-         then this
-         else updateCitations citationMap bibliographyfile)
+      (if hasBibliography && f /= bibliographyfile
+         then updateCitations citationMap bibliographyfile
+         else this)
       >>>
       writeDocumentToString [ withIndent no
                             , withRemoveWS no

@@ -270,17 +270,22 @@ replaceLabel labelmap label =
     labelinfo = case Map.lookup label labelmap of
       Just (counter, title) -> mkLinkenTitle label counter title
       Nothing -> "????"
-    mkLinkenTitle label counter title = case take 3 label of
-      "par" -> counter
-      "cha" -> counter
-      "chp" -> counter
-      "sec" -> counter
-      "fig" -> "" ++ counter
-      "tbl" -> "" ++ counter
-      "tou" -> counter
-      "Wir" -> counter
-      "mac" -> counter
-      _ -> "[reference]"
+    mkLinkenTitle label counter title
+      | "eq:" `isPrefixOf` label || "eqn:" `isPrefixOf` label = "(" ++ counter ++ ")"
+      | otherwise = case take 3 label of
+          "par" -> counter
+          "cha" -> counter
+          "chp" -> counter
+          "sec" -> counter
+          "fig" -> "" ++ counter
+          "tbl" -> "" ++ counter
+          "tou" -> counter
+          "Wir" -> counter
+          "mac" -> counter
+          "thm" -> counter
+          "exm" -> counter
+          "fn:" -> counter
+          _ -> counter
 
 putFileName :: String -> (Map.Map String String) -> String -> String
 putFileName filename label x = 
@@ -328,7 +333,7 @@ reNumberedFootnoteSection =
     fnref = "#fnref"
 
 genChapSecSubsec n t label = 
-  fromSLA ((n,0,0,0,0,0) :: CounterState) (
+  fromSLA ((n,0,0,0,0,0,0) :: CounterState) (
     processBottomUp (
        ((eelem "h1"
          += (putLabel . ("h1"++) $< (this >>> getTextFromNode label))

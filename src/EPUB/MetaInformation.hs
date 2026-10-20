@@ -7,8 +7,13 @@ import Text.XML.HXT.Core hiding (xshow)
 import Data.Time.Clock (getCurrentTime)
 -- import System.Locale (defaultTimeLocale)
 import Data.Time.Format (formatTime, defaultTimeLocale)
+import Data.Maybe (listToMaybe)
 
 --import qualified Debug.Trace as DT (trace)
+
+-- bookinfo may omit <isbn>; pairing with multi isbn would drop all metadata otherwise.
+isbnFromBookinfo =
+  listA (hasName "isbn" /> getText) >>> arr (maybe "" id . listToMaybe)
 
 getIsbn book = do
   runX (
@@ -25,7 +30,7 @@ genOkuzuke book = do
     (ifA (hasName "bookinfo")
      (mkOkuzuke $<<
       (((multi $ hasName "booktitle" >>> listA (getChildren >>> getText) >>> arrL ((:[]).concat))
-        &&& (multi $ hasName "isbn" /> getText)
+        &&& isbnFromBookinfo
         &&& (multi $ hasName "copyright" /> getText)
         &&& (multi $ hasName "copyright" >>> getAttrValue "year")
         &&& (listA (multi $ hasName "printing" >>> (getAttrValue "date" &&& (this /> getText)))))
@@ -51,7 +56,7 @@ mkOkuzuke (title, (isbn, (rights, (year, printings)))) authors =
            += catA (map (\(name,role) -> eelem "p" += (constA name >>> getChildren))
                     authors))
        += (eelem "p" += entityRef "#x00A9" += txt rights += (eelem "i" += txt year))
-       += (eelem "p" += txt "ISBN " += txt isbn)
+       += (if null isbn then none else (eelem "p" += txt "ISBN " += txt isbn))
        += eelem "hr")
    )
 
@@ -92,7 +97,7 @@ getMetaInfo book = do
            (ifA (hasName "bookinfo")
             (mkOpfMetaData $<<
              (((multi $ hasName "booktitle" >>> listA (getChildren >>> getText) >>> arrL ((:[]).concat))
-               &&& (multi $ hasName "isbn" /> getText)
+               &&& isbnFromBookinfo
                &&& (multi $ hasName "copyright" /> getText)
                &&& (constA utctime))
               &&& listA (multi $ hasName "authors" /> hasName "name" >>> this &&& getAttrValue "role" >>> arr authorRole)))
@@ -164,7 +169,25 @@ mkOpf metadata htmls images mathimages (coverimg, coverfilename) tocpagefile oku
   
 mkOpfMetaData :: (ArrowXml a) => (String, (String, (String, String))) -> [(XmlTree, String)] -> a XmlTree XmlTree
 mkOpfMetaData (title, (isbn, (rights, date))) authors =
-  eelem "metadata" 
+  let bookId = if null isbn then title else ("urn:isbn:" ++ isbn)
+      isbnMeta =
+        if null isbn
+          then []
+          else [ eelem "meta"
+                   += sattr "refines" "#BookId"
+                   += sattr "property" "identifier-type"
+                   += sattr "scheme" "onix:codelint5"
+                   += txt "15"
+               , eelem "dc:source"
+                   += sattr "id" "PbookId"
+                   += txt ("urn:isbn:" ++ isbn)
+               , eelem "meta"
+                   += sattr "refines" "#PbookId"
+                   += sattr "property" "identifier-type"
+                   += sattr "scheme" "onix:codelint5"
+                   += txt "15"
+               ]
+  in eelem "metadata" 
   += sattr "xmlns:dc" "http://purl.org/dc/elements/1.1/"
   += sattr "xmlns:opf" "http://www.idpf.org/2007/opf"
   += (eelem "dc:title"
@@ -173,23 +196,11 @@ mkOpfMetaData (title, (isbn, (rights, date))) authors =
       += txt "ja-JP")
   += (eelem "dc:identifier"
        += sattr "id" "BookId"
-       += txt ("urn:isbn:"++isbn))
+       += txt bookId)
   += (eelem "meta"
       += sattr "property" "dcterms:modified"
       += txt date)
-  += (eelem "meta"
-      += (sattr "refines" "#BookId")
-      += (sattr "property" "identifier-type")
-      += sattr "scheme" "onix:codelint5" 
-      += txt "15")
-  += (eelem "dc:source"
-       += sattr "id" "PbookId"
-       += txt ("urn:isbn:"++isbn))
-  += (eelem "meta"
-      += (sattr "refines" "#PbookId")
-      += (sattr "property" "identifier-type")
-      += sattr "scheme" "onix:codelint5"
-      += txt "15")
+  += catA isbnMeta
   += (eelem "dc:date"
       += (txt date))
   += (eelem "dc:rights"
