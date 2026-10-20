@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, FlexibleContexts, BangPatterns #-}
 
-module EPUB.MathReader (configEquations, mathElem) where
+module EPUB.MathReader (configEquations, mathElem, denseEqLabelsFromBodies) where
 
 import Text.XML.HXT.Core hiding (xshow)
 
@@ -11,7 +11,9 @@ import System.IO (hGetContents, hClose)
 import System.IO.Error (ioError, userError)
 import qualified System.FilePath.Posix as FP
 import qualified System.Process as Prc (readProcess)
-import  Data.List (isPrefixOf)
+import Data.List (isPrefixOf, isInfixOf, nub)
+import Data.Char (isSpace)
+import qualified Data.Map as Map
 import qualified Codec.Archive.Zip as ZIP
 import System.Directory (doesFileExist)
 import Control.Monad (void, unless)
@@ -21,7 +23,7 @@ import Data.Hashable (hash)
 
 import qualified System.IO as IO
 
-import qualified Debug.Trace as DT (trace)
+type AuxLabels = Map.Map String (String, String)
 
 data ImgType = PNG | SVG
 
@@ -34,41 +36,83 @@ instance Read ImgType where
     "png" -> [(PNG, "")]
     "svg" -> [(SVG, "")]
 
-configEquations :: String -> [FilePath] -> IO ([FilePath], IO [ZIP.Entry])
-configEquations mathtype filenames =
+-- Equation labels use the eq: or eqn: prefix (see docs/html-input.md).
+configEquations :: AuxLabels -> String -> [FilePath] -> IO ([FilePath], IO [ZIP.Entry], AuxLabels)
+configEquations auxlabels mathtype filenames =
   case mathtype of
       x | elem x ["png", "svg"] -> do
           let imgtype = read x :: ImgType
           maths <- mapM (mathElemToResourceName imgtype) filenames
           let allMaths = concat maths
+              -- PDF aux numbers skip unlabeled equations, so tagging only from aux
+              -- yields gaps (2,5,11…). Renumber labeled eqs 1..N in document order
+              -- and override \\newlabel so \\ref matches the visible tags.
+              dense = denseEqLabelsFromBodies (map snd allMaths)
+              labelmap = Map.union dense auxlabels
+              prepared =
+                [ (p, prepareEqBody dense b, equationNeedsRenumber b)
+                | (p, b) <- allMaths
+                ]
+              -- One render job per content-hash path (avoid races / duplicate ZIP entries).
+              uniquePrepared =
+                Map.elems $ Map.fromList
+                  [ (p, (p, equation, needs))
+                  | (p, equation, needs) <- prepared
+                  ]
           numCaps <- getNumCapabilities
           let maxConcurrency = max 1 (numCaps * 2)
-          let batches = chunksOf maxConcurrency allMaths
+          let batches = chunksOf maxConcurrency uniquePrepared
           mapM_ (\batch ->
-            mapConcurrently_ (\(mathimagepath, equation) -> do
+            mapConcurrently_ (\(mathimagepath, equation, needs) -> do
               exists <- doesFileExist mathimagepath
-              unless exists $
-                void (genImageFromEqString imgtype mathimagepath equation)
+              unless (exists && not needs) $
+                void (genImageFromEqString labelmap imgtype mathimagepath equation)
               ) batch
             ) batches
-          let mathimages = map fst allMaths
-          return $ (mathimages, mapM (ZIP.readEntry []) mathimages)
-      "mathml" -> return ([], return [])
+          let mathimages = nub [p | (p, _, _) <- prepared]
+          return $ (mathimages, mapM (ZIP.readEntry []) mathimages, dense)
+      "mathml" -> return ([], return [], Map.empty)
   where
     chunksOf :: Int -> [a] -> [[a]]
     chunksOf _ [] = []
     chunksOf n xs = take n xs : chunksOf n (drop n xs)
+    equationNeedsRenumber s =
+      "\\ref" `isInfixOf` s || "\\eqref" `isInfixOf` s || "\\label" `isInfixOf` s
+      || hasNumberedDisplay s
+    hasNumberedDisplay s =
+      any (\e -> ("\\begin{" ++ e ++ "}") `isInfixOf` s)
+          ["equation", "align", "gather", "multline", "eqnarray"]
 
--- generate euations as images
+-- Labels in display math, document order → 1..N (EPUB-visible equation numbers).
+denseEqLabelsFromBodies :: [String] -> AuxLabels
+denseEqLabelsFromBodies bodies =
+  Map.fromList
+    [ (lab, (show n, ""))
+    | (n, lab) <- zip [1 :: Int ..] (concatMap eqLabelsIn bodies)
+    ]
 
-genImageFromEqString :: ImgType -> FilePath -> String -> IO ()
-genImageFromEqString mathtype imagepath equation = do
+eqLabelsIn :: String -> [String]
+eqLabelsIn = go
+  where
+    go s =
+      case findLabelSpan s of
+        Nothing -> []
+        Just (_, lab, after)
+          | isEqLabel lab -> lab : go after
+          | otherwise -> go after
+    isEqLabel lab =
+      "eq:" `isPrefixOf` lab || "eqn:" `isPrefixOf` lab
+
+prepareEqBody :: AuxLabels -> String -> String
+prepareEqBody dense = starNumberedEnvs . applyAuxTags dense
+
+genImageFromEqString :: AuxLabels -> ImgType -> FilePath -> String -> IO ()
+genImageFromEqString auxlabels mathtype imagepath equation = do
   let tempPrefix = "temp-" ++ show (abs (hash imagepath))
       tempTex = tempPrefix ++ ".tex"
       tempPdf = tempPrefix ++ ".pdf"
       tempCropPdf = tempPrefix ++ "-crop.pdf"
-  IO.writeFile tempTex (latexTemplate equation)
-  -- upLaTeX via ptex2pdf so Japanese in \\text{...} works
+  IO.writeFile tempTex (latexTemplate auxlabels equation)
   (_, _, mhErr, ph1) <- Process.createProcess ((Process.proc "ptex2pdf"
         ["-u", "-l", "-ot", "-interaction=nonstopmode",
          "-output-directory=.", tempTex])
@@ -97,8 +141,9 @@ genImageFromEqString mathtype imagepath equation = do
         ["--margins", "2", tempPdf, tempCropPdf])
         { std_out = NoStream, std_err = NoStream })
       void $ Process.waitForProcess ph1
+      -- 200dpi is enough for EPUB screens; height/width→em/% scale with this.
       (_, _, _, ph2) <- Process.createProcess ((Process.proc "convert"
-        ["-density", "600", "-quality", "100", "-background", "white",
+        ["-density", "200", "-quality", "100", "-background", "white",
          "-alpha", "remove", "-alpha", "off", "-type", "Grayscale",
          tempCropPdf ++ "[0]", imagepath])
         { std_out = NoStream, std_err = NoStream })
@@ -110,15 +155,89 @@ genImageFromEqString mathtype imagepath equation = do
       (_, _, _, ph2) <- Process.createProcess ((Process.proc "pdf2svg" [tempCropPdf, imagepath])
         { std_out = NoStream, std_err = NoStream })
       void $ Process.waitForProcess ph2
-    latexTemplate body =
+    latexTemplate labels body =
          "\\documentclass[dvipdfmx]{jsarticle}\n"
       ++ "\\usepackage{amsmath,amstext,amssymb,array}\n"
       ++ "\\pagestyle{empty}\n"
+      ++ auxNewlabels labels
       ++ "\\begin{document}\n"
       ++ body
       ++ "\n\\end{document}\n"
 
--- equation settings in resource files
+-- Emit classic \\newlabel{lab}{{text}{page}} so isolated jobs resolve \\ref.
+auxNewlabels :: AuxLabels -> String
+auxNewlabels =
+  concatMap (\(lab, (text, page)) ->
+               "\\newlabel{" ++ lab ++ "}{{" ++ text ++ "}{" ++ page ++ "}}\n")
+  . Map.toList
+
+-- \\label{eq:foo} → \\tag{N}\\label{eq:foo} using the (dense) label map.
+applyAuxTags :: AuxLabels -> String -> String
+applyAuxTags labels s =
+  case findLabelSpan s of
+    Nothing -> s
+    Just (before, lab, after) ->
+      let tag = case Map.lookup lab labels of
+                  Just (text, _)
+                    | not (null text) && not (nearbyTag before) ->
+                        "\\tag{" ++ text ++ "}"
+                  _ -> ""
+      in before ++ tag ++ "\\label{" ++ lab ++ "}" ++ applyAuxTags labels after
+
+findLabelSpan :: String -> Maybe (String, String, String)
+findLabelSpan [] = Nothing
+findLabelSpan xs@(_:ys)
+  | "\\label{" `isPrefixOf` xs =
+      let rest = drop (length "\\label{") xs
+          (lab, braceRest) = break (== '}') rest
+      in if null braceRest
+         then Nothing
+         else Just ("", lab, drop 1 braceRest)
+  | otherwise =
+      case findLabelSpan ys of
+        Nothing -> Nothing
+        Just (b, lab, a) -> Just (head xs : b, lab, a)
+
+nearbyTag :: String -> Bool
+nearbyTag before =
+  let tail40 = reverse (take 40 (reverse (dropWhileEnd isSpace before)))
+  in "\\tag" `isInfixOf` tail40
+  where
+    dropWhileEnd p = reverse . dropWhile p . reverse
+
+-- Isolated jobs must not auto-number from 1. Keep only \\tag{N} from aux labels.
+starNumberedEnvs :: String -> String
+starNumberedEnvs s = foldr starEnv s ["equation", "align", "gather", "multline", "eqnarray"]
+  where
+    starEnv name body = go body
+      where
+        begin = "\\begin{" ++ name ++ "}"
+        end = "\\end{" ++ name ++ "}"
+        beginS = "\\begin{" ++ name ++ "*}"
+        endS = "\\end{" ++ name ++ "*}"
+        go [] = []
+        go xs
+          | beginS `isPrefixOf` xs = beginS ++ go (drop (length beginS) xs)
+          | endS `isPrefixOf` xs = endS ++ go (drop (length endS) xs)
+          | begin `isPrefixOf` xs = beginS ++ go (drop (length begin) xs)
+          | end `isPrefixOf` xs = endS ++ go (drop (length end) xs)
+          | otherwise = head xs : go (tail xs)
+
+-- Pandoc LaTeX→HTML may already wrap display math in \begin{equation} etc.
+wrapDisplayMath :: String -> String
+wrapDisplayMath body
+  | any (`isPrefixOf` dropWhile isSpace body) latexEnvStarts = body
+  | otherwise = "\\begin{align*}" ++ body ++ "\\end{align*}"
+  where
+    latexEnvStarts = map ("\\begin{" ++) ["equation", "align", "align*", "gather", "multline", "eqnarray"]
+
+mathImgFileName :: ImgType -> String -> FilePath
+mathImgFileName imgtype body =
+  "eq" ++ show (abs (hash body)) FP.<.> show imgtype
+
+mathImgPath :: ImgType -> String -> FilePath
+mathImgPath imgtype body =
+  "images" FP.</> show imgtype FP.</> mathImgFileName imgtype body
 
 mathElemToResourceName ::    ImgType -- image type
                           -> FilePath -- file name
@@ -131,22 +250,17 @@ mathElemToResourceName imgtype f = do
                      , withValidate no
                      ] f
         >>>
-        (fromSLA 0
-         (multi
+        (multi
           (choiceA [ hasName "eq" :->
-                     ((nextState (+1) >>> arr (mkMathImgPath imgtype f))
-                      &&& (this /> getText >>> arr (("\\HUGE$"++) . (++"$"))))
+                     (this /> getText >>> arr (\t ->
+                       let body = "$" ++ t ++ "$"
+                       in (mathImgPath imgtype body, body)))
                    , (hasName "math" <+> hasName "equation") :->
-                     ((nextState (+1) >>> arr (mkMathImgPath imgtype f))
-                      &&& (this /> getText >>> arr (("\\begin{align*}"++) . (++"\\end{align*}"))))
+                     (this /> getText >>> arr (\t ->
+                       let body = wrapDisplayMath t
+                       in (mathImgPath imgtype body, body)))
                    , this :-> none
-                   ]))))
-  where
-    mkMathImgPath :: ImgType -> FilePath -> Int -> FilePath
-    mkMathImgPath imgtype filename seq
-      = "images" FP.</> (show imgtype) FP.</> (FP.dropExtension filename ++ show seq FP.<.> (show imgtype))
-
--- set equations in HTML
+                   ])))
 
 mathElem :: (ArrowXml a, ArrowIO a) => String -> FilePath -> a XmlTree XmlTree
 mathElem mathtype filename =
@@ -154,13 +268,14 @@ mathElem mathtype filename =
     x | elem x ["png", "svg"] ->
       let imgtype = read x :: ImgType
       in do
-           fromSLA 0 (
-             processBottomUp (
-                ((mkMathSpan $< ((nextState (+1) >>> arr (mkMathImgSrcPath imgtype filename))))
+           processBottomUp (
+                ((mkMathSpan $< (this /> getText >>> arr (\t ->
+                    mkMathImgSrcPath imgtype filename ("$" ++ t ++ "$"))))
                  `when` hasName "eq")
                 >>>
-                ((mkMathDiv $< ((nextState (+1) >>> arr (mkMathImgSrcPath imgtype filename))))
-                 `when` (hasName "equation"))))
+                ((mkMathDiv $< (this /> getText >>> arr (\t ->
+                    mkMathImgSrcPath imgtype filename (wrapDisplayMath t))))
+                 `when` (hasName "equation")))
            >>>
            setStyleForMath imgtype
     "mathml" ->
@@ -174,10 +289,9 @@ mathElem mathtype filename =
       let htmlpath = FP.takeDirectory f
       in (concat . replicate (length $ (filter (/=".") $ FP.splitPath htmlpath))) "../"
 
-    mkMathImgSrcPath :: ImgType -> FilePath -> Int -> FilePath
-    mkMathImgSrcPath imgtype filename seq
-      = (mkMathImgLead filename) FP.</> "images" FP.</> (show imgtype) FP.</> (FP.dropExtension filename ++ show seq FP.<.> (show imgtype))
-
+    mkMathImgSrcPath :: ImgType -> FilePath -> String -> FilePath
+    mkMathImgSrcPath imgtype filename body
+      = (mkMathImgLead filename) FP.</> mathImgPath imgtype body
     mkMathSpan :: (ArrowXml a) => FilePath -> a XmlTree XmlTree
     mkMathSpan filepath =
       eelem "span"
@@ -187,6 +301,7 @@ mathElem mathtype filename =
 
     mkMathDiv filepath =
       eelem "span"
+      += (ifA (hasAttr "id") (sattr "id" $< getAttrValue "id") (none))
       += (eelem "img"
           += sattr "src" filepath
           += sattr "class" "displaymath")
@@ -202,12 +317,13 @@ mathElem mathtype filename =
         , this :-> this]
         `when` hasName "img")
       where
+        -- Calibrated for PNG density 200.
         appropriateHeightOf imgtype imgfilepath = case imgtype of
-          PNG -> arrIO0 $ Prc.readProcess "identify" ["-format", "\"%[fx:h/58]\"", imgfilepath] []
-          SVG -> arrIO0 $ Prc.readProcess "identify" ["-format", "\"%[fx:h/24]\"", imgfilepath] []
+          PNG -> arrIO0 $ Prc.readProcess "identify" ["-format", "\"%[fx:h/16*0.6]\"", imgfilepath] []
+          SVG -> arrIO0 $ Prc.readProcess "identify" ["-format", "\"%[fx:h/16*0.6]\"", imgfilepath] []
 
         appropriateWidthOf imgtype imgfilepath = case imgtype of
-          PNG -> arrIO0 $ Prc.readProcess "identify" ["-format", "\"%[fx:w/800*100]\"", imgfilepath] []
-          SVG -> arrIO0 $ Prc.readProcess "identify" ["-format", "\"%[fx:w/300*100]\"", imgfilepath] []
+          PNG -> arrIO0 $ Prc.readProcess "identify" ["-format", "\"%[fx:w/1000*100]\"", imgfilepath] []
+          SVG -> arrIO0 $ Prc.readProcess "identify" ["-format", "\"%[fx:w/1000*100]\"", imgfilepath] []
 
         dropParents path = FP.joinPath $ filter (not . (isPrefixOf ".")) $ FP.splitPath path
