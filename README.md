@@ -33,7 +33,7 @@ The only requirement is the main file. It will be like below.
         <printing date="Feb. 2015">2nd edition.</printing>
       </printings>
       <copyright year="2015">Keiichiro Shikano</copyright>
-      <isbn>978-xxxxxxxxxx</isbn>
+      <isbn>978-xxxxxxxxxx</isbn> <!-- optional; see docs/html-input.md -->
     </bookinfo>
 
     <frontmatter/>
@@ -51,6 +51,10 @@ The only requirement is the main file. It will be like below.
 
 You might as well write Arrow.
 
+
+## HTML input
+
+See [docs/html-input.md](docs/html-input.md) for custom elements (`<eq>`, `<equation>`, `<ref>`), label prefixes (`eq:` / `eqn:`), optional `book.aux`, and math image behavior.
 
 ## Requirement
 To take advantage of mathematical equations, you may want below.
